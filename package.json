@@ -1,0 +1,22 @@
+{
+  "name": "knowledge-tree-agent",
+  "version": "1.0.0",
+  "description": "费曼式知识树 AI Agent — 单文件四层架构，前后端可插入",
+  "main": "index.jsx",
+  "module": "index.jsx",
+  "exports": {
+    ".": "./index.jsx"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "keywords": [
+    "claude",
+    "anthropic",
+    "knowledge-graph",
+    "react",
+    "agent",
+    "feynman"
+  ],
+  "license": "MIT"
+}
