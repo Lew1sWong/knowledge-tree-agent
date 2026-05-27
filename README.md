@@ -1,345 +1,357 @@
-# knowledge-tree-agent
+# 🌳 Knowledge Tree Agent
 
-**费曼式知识树 AI Agent** — 单文件四层架构，一行代码嵌入 React，也可运行在 Node.js 后端。
+<div align="center">
 
-输入任意概念，Agent 自动调用 Claude（或 DeepSeek）构建多层知识树，每个节点附有生动的历史故事，并通过相关度评分过滤弱关联，防止幻觉。
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-green.svg)](#)
+[![Status](https://img.shields.io/badge/status-active-success.svg)](#)
 
----
+**A modular AI agent framework powered by hierarchical knowledge structures, memory systems, and autonomous reasoning.**
 
-## Architecture 架构
+**一个基于知识树结构、长期记忆与自主推理的模块化 AI Agent 框架。**
 
-```
-index.jsx  (核心库，单文件)
-│
-├─ § 1  LEVEL_COLORS / AGENT_DEFAULTS   颜色系统 & 默认配置
-├─ § 2  treeLayout / flattenTree / …    树布局算法（Reingold-Tilford）
-├─ § 3  LLM Prompt Engine               反幻觉 × 相关度评分
-├─ § 4  KnowledgeTreeAgent              纯 JS 类，AsyncGenerator 事件流
-│                                        ✓ Node.js  ✓ Bun  ✓ Deno  ✓ 浏览器
-├─ § 5  useKnowledgeTree                React Hook — 客户端 Agent 桥
-├─ § 6  KnowledgeTreeView               交互式 SVG 画布（拖拽 / 缩放）
-├─ § 7  NodeDetail                      右侧节点详情面板
-└─ § 8  KnowledgeTreeWidget             默认导出，开箱即用完整组件
-
-demo/                                   完整可运行的 Demo 应用
-├─ server.js                            Express 服务端 Agent（密码保护 + 限流）
-├─ src/App.jsx                          React 入口（挂载 KnowledgeTreeWidget）
-├─ src/hooks/useStreamExplorer.js       服务端流式 Hook（消费 /api/explore）
-└─ vite.config.js                       开发模式代理（/api/messages）
-```
-
-**调用关系：**
-```
-KnowledgeTreeWidget（默认导出）
-  └─ useKnowledgeTree(config)
-       └─ KnowledgeTreeAgent.explore(concept)  ← AsyncGenerator
-  └─ KnowledgeTreeView(nodes, edges, …)
-       ├─ SVG 树（_TreeNodeSVG × n）
-       └─ 右侧面板（_NodeDetail + 日志区）
-```
+</div>
 
 ---
 
-## Demo 快速启动
+# 📖 Overview | 项目简介
+
+## English
+
+Knowledge Tree Agent is an experimental agent framework designed around the concept of a structured and evolving “knowledge tree”.
+
+Instead of treating memory as flat context, the system organizes information hierarchically, enabling:
+
+* Better long-term reasoning
+* More controllable retrieval
+* Dynamic skill accumulation
+* Persistent contextual memory
+* Modular agent collaboration
+
+The project explores how agents can continuously grow their internal knowledge graph/tree while remaining lightweight, interpretable, and extensible.
+
+---
+
+## 中文
+
+Knowledge Tree Agent 是一个围绕“知识树（Knowledge Tree）”概念构建的实验性 AI Agent 框架。
+
+与传统的平面上下文记忆不同，本项目将知识以层级化结构进行组织，从而实现：
+
+* 更强的长期推理能力
+* 更可控的信息检索
+* 动态技能积累
+* 持久化上下文记忆
+* 模块化 Agent 协作
+
+项目核心目标是探索：Agent 如何在保持轻量化、可解释性与可扩展性的同时，不断成长自己的知识结构。
+
+---
+
+# ✨ Features | 核心特性
+
+| Feature                        | Description                                  |
+| ------------------------------ | -------------------------------------------- |
+| 🌲 Knowledge Tree Architecture | Hierarchical memory & knowledge organization |
+| 🧠 Persistent Memory           | Long-term contextual storage                 |
+| ⚡ Lightweight Design           | Minimal and modular architecture             |
+| 🔌 Extensible Tools            | Easy tool/plugin integration                 |
+| 🤖 Autonomous Reasoning        | Multi-step agent execution                   |
+| 📚 Skill Accumulation          | Experience-based capability growth           |
+| 🔍 Structured Retrieval        | Tree-based retrieval instead of flat search  |
+| 🛠 Developer Friendly          | Designed for experimentation and research    |
+
+---
+
+# 🏗 Architecture | 系统架构
+
+```text
+User Input
+    ↓
+Planner / Router
+    ↓
+Knowledge Tree Engine
+    ├── Memory Layer
+    ├── Retrieval Layer
+    ├── Skill Layer
+    ├── Tool Layer
+    └── Reflection Layer
+    ↓
+LLM Reasoning Core
+    ↓
+Execution / Response
+```
+
+---
+
+# 📂 Project Structure | 项目结构
 
 ```bash
-cd demo
-npm install
-
-# 复制环境变量模板，填写 API Key 和访问密码
-cp .env.example .env
-
-# 开发模式（Vite 热更新，API Key 代理）
-npm run dev
-
-# 生产模式（Express 服务端 Agent + 流式 SSE）
-npm start
+knowledge-tree-agent/
+├── agents/              # Agent definitions
+├── memory/              # Persistent memory storage
+├── skills/              # Reusable agent skills
+├── tools/               # Tool integrations
+├── knowledge/           # Knowledge tree / graph
+├── prompts/             # Prompt templates
+├── workflows/           # Agent workflows
+├── configs/             # Runtime configurations
+├── examples/            # Demo examples
+├── tests/               # Unit tests
+├── docs/                # Documentation
+└── README.md
 ```
 
-### 环境变量（`demo/.env`）
-
-| 变量 | 必填 | 说明 |
-|------|------|------|
-| `ACCESS_PASSWORD` | ✓ | 网站访问密码（密码保护登录页） |
-| `SESSION_SECRET` | ✓ | Session 加密密钥，随机字符串即可 |
-| `PROVIDER` | — | `anthropic`（默认）或 `deepseek` |
-| `ANTHROPIC_API_KEY` | ✓* | Anthropic API Key，`PROVIDER=anthropic` 时必填 |
-| `DEEPSEEK_API_KEY` | ✓* | DeepSeek API Key，`PROVIDER=deepseek` 时必填 |
-| `DEEPSEEK_MODEL` | — | 覆盖 DeepSeek 模型名（可选） |
-| `PORT` | — | 服务端口，默认 `3000` |
-
-### 两种运行模式对比
-
-| | `npm run dev` | `npm start` |
-|---|---|---|
-| 服务器 | Vite Dev Server | Express |
-| API | 代理到上游（无认证） | 服务端 Agent，密码保护 |
-| 流式 | ✗（`/api/explore` 返回 501） | ✓ NDJSON Streaming |
-| 节点扩展 | ✗ | ✓ `/api/expand` |
-| 适用场景 | 本地开发调试 | 部署 / 展示 |
+> Adjust this structure according to your actual repository.
+>
+> 可以根据你的实际仓库结构进行修改。
 
 ---
 
-## 嵌入到你的 React 项目
+# 🚀 Quick Start | 快速开始
 
-将 `index.jsx` 复制到项目任意目录，无其他依赖（仅需 React 18+）。
+## 1. Clone Repository | 克隆仓库
 
-### 最简用法
-
-```jsx
-import KnowledgeTreeWidget from './knowledge-tree-agent'
-
-// 直接传 apiKey（仅限本地开发，key 暴露在客户端）
-export default function App() {
-  return <KnowledgeTreeWidget apiKey="sk-ant-..." />
-}
-```
-
-### 通过服务端代理（推荐，隐藏 API Key）
-
-```jsx
-// 使用 demo/server.js 启动的代理服务
-<KnowledgeTreeWidget agentConfig={{ apiUrl: '/api/messages' }} />
-```
-
-### 自定义深度 & 分支数
-
-```jsx
-<KnowledgeTreeWidget
-  agentConfig={{
-    apiUrl: '/api/messages',
-    maxLevel: 3,           // 树的最大深度
-    branchFactor: [4, 3, 2], // 各层最大子节点数
-    minRelevance: 7,       // 最低相关度阈值（1–10）
-  }}
-/>
+```bash
+git clone https://github.com/Lew1sWong/knowledge-tree-agent.git
+cd knowledge-tree-agent
 ```
 
 ---
 
-## 使用 Hook 自定义 UI
+## 2. Install Dependencies | 安装依赖
 
-`useKnowledgeTree` 管理状态，UI 完全由你控制。
+### Python
 
-```jsx
-import { useKnowledgeTree, KnowledgeTreeView } from './knowledge-tree-agent'
-
-function MyApp() {
-  const kt = useKnowledgeTree({ apiUrl: '/api/messages' })
-
-  return (
-    <div>
-      <input onKeyDown={e => e.key === 'Enter' && kt.explore(e.target.value)} />
-      <button disabled={kt.busy} onClick={() => kt.explore('量子纠缠')}>
-        探索
-      </button>
-
-      {/* 使用内置 View */}
-      <KnowledgeTreeView
-        nodes={kt.nodes}
-        edges={kt.edges}
-        selectedNode={kt.selectedNode}
-        onNodeSelect={kt.setSelectedNode}
-        onNodeExpand={kt.expand}    // 深度探索按钮回调
-      />
-
-      {/* 或完全自定义 */}
-      <pre>{JSON.stringify(kt.tree, null, 2)}</pre>
-    </div>
-  )
-}
+```bash
+pip install -r requirements.txt
 ```
 
-### 服务端流式 Hook（`useStreamExplorer`）
+### Or using uv
 
-当使用 `npm start` 运行 Express 服务端时，可替换为流式 Hook，树节点由服务端逐步推送：
-
-```jsx
-import { useStreamExplorer } from './demo/src/hooks/useStreamExplorer'
-import { KnowledgeTreeView } from './knowledge-tree-agent'
-
-function App() {
-  const kt = useStreamExplorer({ maxLevel: 2 })
-  // 接口与 useKnowledgeTree 完全相同，可直接替换
-  return <KnowledgeTreeView {...kt} onNodeSelect={kt.setSelectedNode} onNodeExpand={kt.expand} />
-}
+```bash
+uv sync
 ```
 
 ---
 
-## Node.js 后端 — 纯 Agent
+## 3. Configure Environment | 配置环境变量
 
-`KnowledgeTreeAgent` 零框架依赖，可直接在 Node.js / Bun / Deno 中使用。
+Create a `.env` file:
 
-```js
-import { KnowledgeTreeAgent } from './index.jsx'
-
-const agent = new KnowledgeTreeAgent({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  maxLevel: 2,
-  branchFactor: [3, 3, 2],
-})
-
-// 流式处理（推荐）
-for await (const ev of agent.explore('丝绸之路')) {
-  if (ev.type === 'node:done') {
-    console.log(`[L${ev.node.level}] ${ev.node.label}: ${ev.node.explanation}`)
-  }
-}
-
-// 或一次性获取完整树
-const tree = await agent.run('量子纠缠')
-console.log(JSON.stringify(tree, null, 2))
+```env
+OPENAI_API_KEY=your_api_key
+ANTHROPIC_API_KEY=your_api_key
 ```
 
 ---
 
-## API Reference
+## 4. Run the Agent | 启动 Agent
 
-### `KnowledgeTreeAgent`
-
-```js
-new KnowledgeTreeAgent(config?)
+```bash
+python main.py
 ```
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `config.apiKey` | `string` | — | API Key（Node.js 自动读 `ANTHROPIC_API_KEY`） |
-| `config.apiUrl` | `string` | `https://api.anthropic.com/v1/messages` | API 端点 |
-| `config.model` | `string` | `claude-sonnet-4-20250514` | 模型 ID |
-| `config.maxLevel` | `number` | `2` | 树的最大深度（0 = 根） |
-| `config.branchFactor` | `number[]` | `[3, 3, 2]` | 各层最大子节点数 |
-| `config.maxTokens` | `number` | `1500` | 单次请求最大 tokens |
-| `config.retries` | `number` | `2` | 失败重试次数 |
-| `config.minRelevance` | `number` | `6` | 最低相关度阈值，低于此值的子概念被过滤 |
+Or:
 
-**方法：**
-
-```js
-agent.explore(concept: string): AsyncGenerator<AgentEvent>
-agent.run(concept: string): Promise<TreeNode>  // 一次性，返回完整树
+```bash
+uv run main.py
 ```
 
 ---
 
-### Agent 事件（`explore()` yield）
+# 🧠 Knowledge Tree Concept | 知识树核心概念
 
-| `type` | 附加字段 | 触发时机 |
-|--------|----------|----------|
-| `"start"` | `node, tree` | 根节点创建后 |
-| `"node:loading"` | `node, tree` | 节点开始 LLM 请求 |
-| `"node:done"` | `node, tree` | 节点请求成功 |
-| `"node:error"` | `node, tree, error` | 节点最终失败 |
-| `"complete"` | `tree` | 所有节点处理完毕 |
+## English
 
-`tree` 是当前根节点引用（原地修改），`node` 是本次事件涉及的节点。
+Traditional RAG systems often rely on flat vector retrieval.
 
----
+Knowledge Tree Agent instead organizes knowledge into hierarchical semantic branches:
 
-### `useKnowledgeTree(agentConfig?)`
-
-```ts
-const {
-  tree,           // TreeNode | null — 当前树结构
-  nodes,          // TreeNode[]    — flattenTree(tree)
-  edges,          // [TreeNode, TreeNode][]  — 连线数组
-  log,            // string[]      — Agent 运行日志
-  busy,           // boolean       — 是否正在探索
-  selectedNode,   // TreeNode | null
-  setSelectedNode,
-  explore,        // (concept: string) => void — 探索新概念
-  expand,         // (nodeId: number) => void  — 深度探索叶节点
-} = useKnowledgeTree(agentConfig)
+```text
+Root
+├── Programming
+│   ├── Python
+│   ├── AI
+│   └── Systems
+├── Research
+│   ├── Papers
+│   └── Experiments
+└── Personal Memory
+    ├── Preferences
+    └── History
 ```
 
-> `useStreamExplorer` 返回完全相同的接口，可直接替换。
+This structure allows the agent to:
+
+* Navigate knowledge semantically
+* Reduce retrieval noise
+* Improve reasoning efficiency
+* Maintain interpretable memory paths
 
 ---
 
-### `KnowledgeTreeView` props
+## 中文
 
-| prop | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `nodes` | `TreeNode[]` | ✓ | `flattenTree` 的结果 |
-| `edges` | `[TreeNode, TreeNode][]` | ✓ | `getTreeEdges` 的结果 |
-| `selectedNode` | `TreeNode \| null` | — | 当前选中节点 |
-| `onNodeSelect` | `(node) => void` | — | 节点点击回调 |
-| `onNodeExpand` | `(nodeId) => void` | — | 深度探索按钮（`+`）点击回调 |
+传统 RAG 系统通常采用“平面向量检索”的方式。
 
----
+Knowledge Tree Agent 则尝试将知识组织为层级化语义结构：
 
-### `KnowledgeTreeWidget` props
-
-| prop | 类型 | 说明 |
-|------|------|------|
-| `apiKey` | `string` | Anthropic API Key（可选，建议用代理） |
-| `agentConfig` | `object` | 覆盖 `AGENT_DEFAULTS` 的任意字段 |
-
----
-
-### Demo 服务端 API（`demo/server.js`）
-
-| 路由 | 方法 | 说明 |
-|------|------|------|
-| `/api/messages` | POST | LLM 代理（转发给上游 API，供前端 Agent 使用） |
-| `/api/explore` | POST | 服务端流式探索，NDJSON streaming |
-| `/api/expand` | POST | 单节点深度扩展 |
-| `/api/health` | GET | 健康检查，返回 `{ ok, provider, time }` |
-
-**`/api/explore` 请求体：**
-```json
-{ "concept": "量子纠缠", "maxLevel": 2, "branchFactor": [3, 3, 2], "minRelevance": 6 }
+```text
+根节点
+├── 编程
+│   ├── Python
+│   ├── AI
+│   └── 系统设计
+├── 研究
+│   ├── 论文
+│   └── 实验
+└── 用户记忆
+    ├── 偏好
+    └── 历史记录
 ```
 
-**`/api/explore` 流式事件格式（每行一个 JSON）：**
-```
-{"type":"start","node":{...}}
-{"type":"node:loading","node":{...}}
-{"type":"node:done","node":{...}}
-{"type":"complete"}
-```
+这种结构能够帮助 Agent：
+
+* 更语义化地导航知识
+* 降低检索噪声
+* 提高推理效率
+* 保持记忆路径可解释
 
 ---
 
-### TreeNode 结构
+# 🔄 Workflow | 工作流
 
-```ts
-interface TreeNode {
-  id:                 number        // 自增唯一 ID
-  label:              string        // 概念名称
-  level:              number        // 层级（0 = 根）
-  explanation:        string        // Claude 生成的费曼故事
-  relevance:          number | null // 相关度评分（1–10），根节点为 null
-  hasStrongRelations: boolean | null // null=未评估，false=无子概念可展开
-  children:           TreeNode[]    // 子节点
-  status:             'pending' | 'loading' | 'done' | 'error'
-  x:                  number        // SVG 布局坐标（treeLayout 计算）
-  y:                  number
-}
+```text
+Task Input
+    ↓
+Task Planning
+    ↓
+Knowledge Retrieval
+    ↓
+Memory Injection
+    ↓
+Tool Execution
+    ↓
+Reflection & Update
+    ↓
+Knowledge Tree Growth
 ```
 
 ---
 
-### Utility 工具函数
+# 🛠 Tech Stack | 技术栈
 
-```js
-import { treeLayout, flattenTree, getTreeEdges, mkNode, AGENT_DEFAULTS, LEVEL_COLORS } from './index.jsx'
+| Category   | Technology                      |
+| ---------- | ------------------------------- |
+| Language   | Python / TypeScript             |
+| LLM        | OpenAI / Anthropic / Gemini     |
+| Vector DB  | Chroma / FAISS / Milvus         |
+| Framework  | LangChain / LlamaIndex / Custom |
+| Memory     | File-based / Graph-based        |
+| Deployment | Docker / Local / Cloud          |
 
-treeLayout(root, W?)     // 原地计算节点 x/y 坐标，W 为画布宽度（默认 1100）
-flattenTree(root)         // 返回所有节点的扁平数组
-getTreeEdges(root)        // 返回所有 [父节点, 子节点] 连线对
-mkNode(label, level, relevance?)  // 创建新节点
+> Replace with your actual stack.
+>
+> 请根据实际技术栈替换。
+
+---
+
+# 📸 Demo | 演示
+
+## Example Prompt
+
+```text
+Summarize all AI agent research related to memory systems.
 ```
 
-**`AGENT_DEFAULTS`：**
-```js
-{
-  apiUrl:       "https://api.anthropic.com/v1/messages",
-  model:        "claude-sonnet-4-20250514",
-  maxLevel:     2,
-  maxTokens:    1500,
-  retries:      2,
-  branchFactor: [3, 3, 2],
-  minRelevance: 6,
-}
-```
+## Example Behavior
+
+* Retrieves related nodes from the knowledge tree
+* Injects long-term memory
+* Uses tools if necessary
+* Generates structured reasoning
+* Updates memory tree after completion
+
+---
+
+# 🔬 Research Direction | 研究方向
+
+This project explores topics including:
+
+* Agent memory systems
+* Hierarchical retrieval
+* Autonomous knowledge growth
+* Multi-agent collaboration
+* Tree-based reasoning
+* Lightweight agent architecture
+* Long-context optimization
+
+---
+
+# 🗺 Roadmap | 路线图
+
+## Near Term
+
+* [ ] Knowledge tree visualization
+* [ ] Memory compression
+* [ ] Reflection system
+* [ ] Multi-agent coordination
+* [ ] Tool sandboxing
+
+## Future
+
+* [ ] Self-evolving skills
+* [ ] Distributed memory network
+* [ ] Graph reasoning engine
+* [ ] Reinforcement learning integration
+* [ ] Agent operating system
+
+---
+
+# 🤝 Contributing | 贡献指南
+
+Contributions are welcome.
+
+You can contribute by:
+
+* Opening issues
+* Submitting pull requests
+* Improving documentation
+* Adding tools or memory modules
+* Experimenting with new retrieval methods
+
+---
+
+# 📜 License | 开源协议
+
+MIT License.
+
+Feel free to use, modify, and distribute.
+
+---
+
+# 🌟 Inspiration | 灵感来源
+
+This project is inspired by modern agent systems and memory-centric AI research, including:
+
+* [GenericAgent GitHub Repository](https://github.com/lsdefine/GenericAgent?utm_source=chatgpt.com)
+* [GitAgent Protocol](https://www.gitagent.sh/?utm_source=chatgpt.com)
+* [Vercel Knowledge Agent Template](https://github.com/vercel-labs/knowledge-agent-template?utm_source=chatgpt.com)
+* Hierarchical memory and graph-based reasoning research
+
+---
+
+# 👨‍💻 Author | 作者
+
+Created by [Lewis Wong GitHub](https://github.com/Lew1sWong?utm_source=chatgpt.com)
+
+---
+
+<div align="center">
+
+### ⭐ If you find this project interesting, consider giving it a star.
+
+### ⭐ 如果这个项目对你有帮助，欢迎点一个 Star！
+
+</div>
