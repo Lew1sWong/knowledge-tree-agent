@@ -1216,6 +1216,8 @@ function _NodeDetail({ node, allNodes, onSelect, themeColor, lang = "zh", onAuto
 // ══════════════════════════════════════════════════════════════════
 
 function _AssocAnimation({ nodes, lang, onCancel }) {
+  if (!nodes.length) return null; // 空节点防护：避免除以 0 或无效 SVG 渲染崩溃
+
   const overlayRef = useRef(null);
   const analyzingTextRef = useRef(null);
   const tl_l = LANG[lang].assoc;
@@ -1229,14 +1231,19 @@ function _AssocAnimation({ nodes, lang, onCancel }) {
   }));
 
   useGSAP(() => {
-    gsap.from(overlayRef.current, { opacity: 0, duration: 0.3 });
+    if (!overlayRef.current) return;
+    gsap.from(overlayRef.current, { opacity: 0, duration: 0.38, ease: 'power2.out' });
+    // 用 querySelector 替代字符串选择器，避免 scope 查找 SVG 子元素失败
     positions.forEach((_, i) => {
-      gsap.from(`#_aa_chip_${i}`, { scale: 0, opacity: 0, duration: 0.5, delay: i * 0.12, ease: 'back.out(1.8)', transformOrigin: 'center' });
+      const el = overlayRef.current.querySelector(`#_aa_chip_${i}`);
+      if (el) gsap.from(el, { scale: 0, opacity: 0, duration: 0.55, delay: i * 0.14, ease: 'back.out(2.2)', transformOrigin: 'center' });
     });
-    gsap.to(analyzingTextRef.current, {
-      opacity: 0.35, duration: 0.75, ease: 'sine.inOut', yoyo: true, repeat: -1,
-    });
-  }, { scope: overlayRef });
+    if (analyzingTextRef.current) {
+      gsap.to(analyzingTextRef.current, {
+        opacity: 0.28, duration: 0.9, ease: 'sine.inOut', yoyo: true, repeat: -1,
+      });
+    }
+  }, { scope: overlayRef, dependencies: [] });
 
   return (
     <div ref={overlayRef} style={{ position:"fixed", inset:0, zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.92)", backdropFilter:"blur(12px)", gap:28 }}>
@@ -1303,9 +1310,9 @@ function _AssocResultModal({ nodes, result, lang, onClose, onExtract }) {
 
   useGSAP(() => {
     const tl = gsap.timeline({ defaults: { ease: 'power2.out' } })
-    tl.from(modalRef.current, { scale: 0.92, opacity: 0, y: 16, duration: 0.35, ease: 'back.out(1.5)' })
-      .from('.kt3-result-card', { y: 14, opacity: 0, duration: 0.28, stagger: 0.065, immediateRender: false }, '-=0.1')
-      .from('.kt3-strength-fill', { scaleX: 0, duration: 0.55, stagger: 0.065, transformOrigin: 'left center', immediateRender: false }, '<0.08')
+    tl.from(modalRef.current, { scale: 0.88, opacity: 0, y: 28, duration: 0.42, ease: 'back.out(1.8)' })
+      .from('.kt3-result-card', { y: 18, opacity: 0, duration: 0.32, stagger: 0.08, immediateRender: false }, '-=0.15')
+      .from('.kt3-strength-fill', { scaleX: 0, duration: 0.72, stagger: 0.08, ease: 'power3.out', transformOrigin: 'left center', immediateRender: false }, '<0.1')
   }, { scope: modalRef });
 
   const sc = (s) => s >= 8 ? "#10b981" : s >= 6 ? "#f59e0b" : s >= 4 ? "#f43f5e" : "#4a4a6a";
@@ -1533,7 +1540,7 @@ function _LogLine({ text }) {
 function _RootTab({ root, active, onSelect, onRemove }) {
   const tabRef = useRef(null)
   useGSAP(() => {
-    gsap.from(tabRef.current, { scale: 0.72, opacity: 0, duration: 0.38, ease: 'back.out(2.4)' })
+    gsap.from(tabRef.current, { scale: 0.6, opacity: 0, x: -10, duration: 0.46, ease: 'back.out(2.8)' })
   }, { scope: tabRef })
 
   return (
@@ -1553,7 +1560,7 @@ function _RootTab({ root, active, onSelect, onRemove }) {
 function _AssocChip({ node, onRemove }) {
   const chipRef = useRef(null)
   useGSAP(() => {
-    gsap.from(chipRef.current, { scale: 0.5, opacity: 0, duration: 0.28, ease: 'back.out(2.2)' })
+    gsap.from(chipRef.current, { scale: 0, opacity: 0, y: 8, duration: 0.42, ease: 'back.out(3.2)' })
   }, { scope: chipRef })
   const c = LC(node.level)
   return (
@@ -1572,7 +1579,7 @@ function _AssocBanner({ assocNodes, lang, onStart, onClear, onRemoveNode }) {
   const bannerRef = useRef(null)
   const tl_l = LANG[lang].assoc
   useGSAP(() => {
-    gsap.from(bannerRef.current, { y: -40, opacity: 0, duration: 0.3, ease: 'power2.out' })
+    gsap.from(bannerRef.current, { y: -56, opacity: 0, duration: 0.48, ease: 'back.out(1.8)' })
   }, { scope: bannerRef })
   return (
     <div ref={bannerRef} style={{ padding:"8px 16px", background:"rgba(139,92,246,0.05)", borderBottom:"1px solid rgba(139,92,246,0.15)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
@@ -1617,7 +1624,7 @@ function _RightPanelEmpty({ lang }) {
   const iconRef = useRef(null)
   const tl_l = LANG[lang]
   useGSAP(() => {
-    gsap.to(iconRef.current, { y: -7, duration: 1.8, ease: 'sine.inOut', yoyo: true, repeat: -1 })
+    gsap.to(iconRef.current, { y: -10, duration: 2.2, ease: 'sine.inOut', yoyo: true, repeat: -1 })
   }, { scope: iconRef })
 
   return (
@@ -1866,6 +1873,10 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
 
   // ── 关联模式逻辑（新版）────────────────────────────────────────
   const toggleAssocMode = () => {
+    if (assocAnalyzing) {
+      assocAbortRef.current = true;
+      setAssocAnalyzing(false);
+    }
     setAssocMode(v => !v);
     setAssocNodes([]);
     setAssocResult(null);
@@ -1897,15 +1908,16 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nodes: assocNodes.map(n => n.label) }),
       });
-      if (assocAbortRef.current) return;
+      if (assocAbortRef.current) return; // 已被取消，状态已由 cancelAssocAnalysis 清理
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "分析失败");
       setAssocResult(data);
       setShowAssocResult(true);
     } catch (err) {
-      console.error("关联分析失败:", err.message);
+      if (!assocAbortRef.current) console.error("关联分析失败:", err.message);
     }
-    setAssocAnalyzing(false);
+    // 仅在未被取消时清理（取消时 cancelAssocAnalysis 已设 false）
+    if (!assocAbortRef.current) setAssocAnalyzing(false);
   };
 
   // 取消分析
@@ -2076,9 +2088,9 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
           <input className="kt3-input" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!anyBusy&&doAddRoot()} disabled={roots.length>=maxTrees} placeholder={roots.length>=maxTrees ? tl.input.maxReached : anyBusy ? tl.input.busy : tl.input.default} />
 
           <div className="kt3-searchbar-row2" style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
-            {/* 深度 / Depth — 仅 L1 */}
+            {/* 深度 / Depth — L1~L4 */}
             <span style={{ fontSize:11, color:"#282838", marginRight:2 }}>{tl.depth}</span>
-            {[1].map(d => <button key={d} className={`kt3-depth${depth===d?" on":""}`} onClick={()=>setDepth(d)} disabled={anyBusy}>L{d}</button>)}
+            {[1,2,3,4].map(d => <button key={d} className={`kt3-depth${depth===d?" on":""}`} onClick={()=>setDepth(d)} disabled={anyBusy}>L{d}</button>)}
 
             {/* 添加根 / 中断按钮 */}
             {anyBusy ? (

@@ -1,357 +1,238 @@
-# 🌳 Knowledge Tree Agent
+# 知识图谱探索者 · Knowledge Graph Explorer
 
 <div align="center">
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-green.svg)](#)
-[![Status](https://img.shields.io/badge/status-active-success.svg)](#)
+[![Node](https://img.shields.io/badge/node-18%2B-green.svg)](#)
+[![React](https://img.shields.io/badge/react-18-61dafb.svg)](#)
+[![Claude](https://img.shields.io/badge/powered%20by-Claude%20AI-blueviolet)](#)
 
-**A modular AI agent framework powered by hierarchical knowledge structures, memory systems, and autonomous reasoning.**
+**费曼学习法 · 反幻觉 · 多根关联 · 3D 可视化**
 
-**一个基于知识树结构、长期记忆与自主推理的模块化 AI Agent 框架。**
+**Feynman Method · Anti-hallucination · Multi-root · 3D Visualization**
+
+![Knowledge Graph Explorer](https://img.shields.io/badge/status-active-success.svg)
 
 </div>
 
 ---
 
-# 📖 Overview | 项目简介
+## 简介 | Overview
 
-## English
+**中文**
 
-Knowledge Tree Agent is an experimental agent framework designed around the concept of a structured and evolving “knowledge tree”.
+知识图谱探索者是一个基于 Claude AI 的交互式知识树构建工具。输入任意概念，AI Agent 自动递归拆解子概念，构建层级化知识图谱。支持多棵知识树同时展示、跨树关联分析，以及沉浸式 3D 可视化。
 
-Instead of treating memory as flat context, the system organizes information hierarchically, enabling:
+**English**
 
-* Better long-term reasoning
-* More controllable retrieval
-* Dynamic skill accumulation
-* Persistent contextual memory
-* Modular agent collaboration
-
-The project explores how agents can continuously grow their internal knowledge graph/tree while remaining lightweight, interpretable, and extensible.
+An interactive knowledge graph builder powered by Claude AI. Enter any concept and the AI agent recursively decomposes it into sub-concepts, building a hierarchical knowledge tree. Supports multiple concurrent trees, cross-tree association analysis, and an immersive 3D visualization mode.
 
 ---
 
-## 中文
+## 核心特性 | Features
 
-Knowledge Tree Agent 是一个围绕“知识树（Knowledge Tree）”概念构建的实验性 AI Agent 框架。
-
-与传统的平面上下文记忆不同，本项目将知识以层级化结构进行组织，从而实现：
-
-* 更强的长期推理能力
-* 更可控的信息检索
-* 动态技能积累
-* 持久化上下文记忆
-* 模块化 Agent 协作
-
-项目核心目标是探索：Agent 如何在保持轻量化、可解释性与可扩展性的同时，不断成长自己的知识结构。
-
----
-
-# ✨ Features | 核心特性
-
-| Feature                        | Description                                  |
-| ------------------------------ | -------------------------------------------- |
-| 🌲 Knowledge Tree Architecture | Hierarchical memory & knowledge organization |
-| 🧠 Persistent Memory           | Long-term contextual storage                 |
-| ⚡ Lightweight Design           | Minimal and modular architecture             |
-| 🔌 Extensible Tools            | Easy tool/plugin integration                 |
-| 🤖 Autonomous Reasoning        | Multi-step agent execution                   |
-| 📚 Skill Accumulation          | Experience-based capability growth           |
-| 🔍 Structured Retrieval        | Tree-based retrieval instead of flat search  |
-| 🛠 Developer Friendly          | Designed for experimentation and research    |
+| 特性 | Feature | 说明 |
+|------|---------|------|
+| 🌲 多根知识树 | Multi-root Trees | 最多同时构建 4 棵知识树，水平并排展示 |
+| 🧠 递归 AI 拆解 | Recursive AI Decomposition | Claude 逐层展开子概念，过滤弱相关节点 |
+| 🔗 跨树关联分析 | Cross-tree Analysis | 自动发现不同知识树之间的语义关联 |
+| ⟷ 关联模式 | Association Mode | 手动选择 2-4 个节点，分析多维关联关系 |
+| 🌐 3D 可视化 | 3D Visualization | Three.js 驱动的球形节点 + 后期处理特效 |
+| 🎞 GSAP 动画 | GSAP Animations | 弹性进场、stagger 列表、实时浮动效果 |
+| 🎵 Web Audio 音效 | Web Audio FX | 生成式环境音乐 + 节点交互音效 |
+| 👤 用户系统 | Auth System | Session 登录 + 管理员后台 |
+| ⚙ 个性化偏好 | User Preferences | 叙事风格、背景设定、LLM 输出语言 |
+| 🔒 反幻觉机制 | Anti-hallucination | 严格 Prompt 约束，宁可返回空也不编造 |
 
 ---
 
-# 🏗 Architecture | 系统架构
+## 技术栈 | Tech Stack
 
-```text
-User Input
-    ↓
-Planner / Router
-    ↓
-Knowledge Tree Engine
-    ├── Memory Layer
-    ├── Retrieval Layer
-    ├── Skill Layer
-    ├── Tool Layer
-    └── Reflection Layer
-    ↓
-LLM Reasoning Core
-    ↓
-Execution / Response
-```
+| 层 | 技术 |
+|----|------|
+| 前端框架 | React 18 + Vite |
+| 3D 引擎 | Three.js · React Three Fiber · Drei |
+| 后期处理 | @react-three/postprocessing (Bloom, ChromaticAberration) |
+| 动画 | GSAP 3 + @gsap/react (`useGSAP`) |
+| 后端 | Node.js + Express |
+| AI | Anthropic Claude API (claude-sonnet-4) |
+| 认证 | Express-session + scrypt 密码哈希 |
+| 部署 | 静态构建 (Vite) + Express 服务端渲染 |
 
 ---
 
-# 📂 Project Structure | 项目结构
+## 快速开始 | Quick Start
 
-```bash
-knowledge-tree-agent/
-├── agents/              # Agent definitions
-├── memory/              # Persistent memory storage
-├── skills/              # Reusable agent skills
-├── tools/               # Tool integrations
-├── knowledge/           # Knowledge tree / graph
-├── prompts/             # Prompt templates
-├── workflows/           # Agent workflows
-├── configs/             # Runtime configurations
-├── examples/            # Demo examples
-├── tests/               # Unit tests
-├── docs/                # Documentation
-└── README.md
-```
-
-> Adjust this structure according to your actual repository.
->
-> 可以根据你的实际仓库结构进行修改。
-
----
-
-# 🚀 Quick Start | 快速开始
-
-## 1. Clone Repository | 克隆仓库
+### 1. 克隆仓库 | Clone
 
 ```bash
 git clone https://github.com/Lew1sWong/knowledge-tree-agent.git
 cd knowledge-tree-agent
 ```
 
----
-
-## 2. Install Dependencies | 安装依赖
-
-### Python
+### 2. 安装依赖 | Install
 
 ```bash
-pip install -r requirements.txt
+npm install
 ```
 
-### Or using uv
+### 3. 配置环境变量 | Environment
 
-```bash
-uv sync
-```
-
----
-
-## 3. Configure Environment | 配置环境变量
-
-Create a `.env` file:
+创建 `.env` 文件 | Create `.env`:
 
 ```env
-OPENAI_API_KEY=your_api_key
-ANTHROPIC_API_KEY=your_api_key
+ANTHROPIC_API_KEY=your_claude_api_key
+
+# 可选 | Optional
+PORT=3000
+SESSION_SECRET=your_session_secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
+
+# 使用 DeepSeek 替代 Anthropic | Use DeepSeek instead of Anthropic
+# PROVIDER=deepseek
+# DEEPSEEK_API_KEY=your_deepseek_api_key
 ```
 
----
-
-## 4. Run the Agent | 启动 Agent
+### 4. 开发模式 | Development
 
 ```bash
-python main.py
+# 启动前端开发服务器
+npm run dev
+
+# 启动后端服务器（另开终端）
+node server.js
 ```
 
-Or:
+### 5. 生产部署 | Production
 
 ```bash
-uv run main.py
+# 构建前端
+npm run build
+
+# 启动服务（同时服务前端静态文件和 API）
+node server.js
+```
+
+访问 | Open: `http://localhost:3000`
+
+---
+
+## 使用指南 | Usage
+
+### 构建知识树 | Build a Knowledge Tree
+
+1. 在搜索框输入任意概念（如「量子纠缠」「李白」「牛顿」）
+2. 选择探索深度 **L1–L4**（L1 = 1 层子概念，L4 = 4 层递归）
+3. 点击「添加根」，AI 开始自动构建
+
+> ⚠️ L3/L4 深度会产生大量 API 调用，请注意用量。
+
+### 多树关联 | Multi-tree Analysis
+
+- 添加 2-4 棵不同主题的知识树
+- 点击「⟷ 分析关联」，AI 自动发现跨树语义连接
+- 虚线代表跨树关联，强度由颜色和粒子速度体现
+
+### 关联模式 | Association Mode
+
+1. 点击「⟷ 关联模式」进入选择状态
+2. 点击任意节点（最多 4 个）加入分析
+3. 点击「分析关联」，获取详细的节点对关联报告
+4. 可将关联结果「提取为新知识树」
+
+### 3D 模式 | 3D Mode
+
+默认启用 3D 球形节点画布，支持：
+- 拖拽旋转、滚轮缩放、右键平移
+- 点击节点查看详情
+- 点击 `+` 按钮深度探索叶节点
+
+---
+
+## 管理后台 | Admin Panel
+
+访问 `/admin`（需要管理员账号）：
+
+- 创建 / 删除用户
+- 重置用户密码
+- 配置最大知识树数量（全局限制）
+
+---
+
+## 项目结构 | Project Structure
+
+```
+knowledge-tree-agent/
+├── index.jsx          # 核心组件库（Widget、Hook、SVG Canvas、GSAP 动画）
+├── src/
+│   ├── App.jsx        # 应用入口
+│   ├── main.jsx       # React 挂载点
+│   └── TreeCanvas3D.jsx  # 3D Three.js 画布
+├── server.js          # Express 后端（API、认证、LLM 代理）
+├── config.json        # 运行时配置（maxTrees 等）
+├── users.json         # 用户数据（自动生成）
+├── index.html         # HTML 入口
+├── vite.config.js     # Vite 配置
+└── package.json
 ```
 
 ---
 
-# 🧠 Knowledge Tree Concept | 知识树核心概念
+## API 接口 | API Endpoints
 
-## English
-
-Traditional RAG systems often rely on flat vector retrieval.
-
-Knowledge Tree Agent instead organizes knowledge into hierarchical semantic branches:
-
-```text
-Root
-├── Programming
-│   ├── Python
-│   ├── AI
-│   └── Systems
-├── Research
-│   ├── Papers
-│   └── Experiments
-└── Personal Memory
-    ├── Preferences
-    └── History
-```
-
-This structure allows the agent to:
-
-* Navigate knowledge semantically
-* Reduce retrieval noise
-* Improve reasoning efficiency
-* Maintain interpretable memory paths
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/messages` | LLM 代理（前端直接调用 Claude） |
+| POST | `/api/explore` | 服务端流式构建知识树（NDJSON） |
+| POST | `/api/expand` | 单节点深度展开 |
+| POST | `/api/cross-relations` | 跨树关联分析 |
+| POST | `/api/association` | 多节点（2-4）关联分析 |
+| POST | `/api/auto-relations` | 自动发现与 pivot 节点相关的节点 |
+| GET  | `/api/me` | 当前用户信息 & 偏好 |
+| PUT  | `/api/settings` | 保存用户偏好 |
+| GET  | `/api/config` | 系统配置（maxTrees） |
 
 ---
 
-## 中文
+## 反幻觉机制 | Anti-hallucination
 
-传统 RAG 系统通常采用“平面向量检索”的方式。
+系统通过严格的 Prompt 约束防止 AI 编造关联：
 
-Knowledge Tree Agent 则尝试将知识组织为层级化语义结构：
-
-```text
-根节点
-├── 编程
-│   ├── Python
-│   ├── AI
-│   └── 系统设计
-├── 研究
-│   ├── 论文
-│   └── 实验
-└── 用户记忆
-    ├── 偏好
-    └── 历史记录
-```
-
-这种结构能够帮助 Agent：
-
-* 更语义化地导航知识
-* 降低检索噪声
-* 提高推理效率
-* 保持记忆路径可解释
+- **子概念** = 父概念的「直接组成部分」「核心属性」「内部机制」
+- 禁止列入：同级概念、更大范畴概念、仅时代/地理关联
+- `relevance < 5` 的子概念被自动过滤
+- `has_strong_relations = false` 时，知识树在此节点终止延伸
 
 ---
 
-# 🔄 Workflow | 工作流
+## 路线图 | Roadmap
 
-```text
-Task Input
-    ↓
-Task Planning
-    ↓
-Knowledge Retrieval
-    ↓
-Memory Injection
-    ↓
-Tool Execution
-    ↓
-Reflection & Update
-    ↓
-Knowledge Tree Growth
-```
+- [x] 多根知识树并排展示
+- [x] 3D 球形节点可视化
+- [x] GSAP 动画系统
+- [x] 关联模式（多节点分析）
+- [x] 用户系统 + 管理后台
+- [x] L1–L4 深度选择
+- [ ] 知识树导出（JSON / PNG）
+- [ ] 节点编辑 & 手动添加
+- [ ] 移动端手势优化
+- [ ] 知识树分享链接
 
 ---
 
-# 🛠 Tech Stack | 技术栈
+## 开源协议 | License
 
-| Category   | Technology                      |
-| ---------- | ------------------------------- |
-| Language   | Python / TypeScript             |
-| LLM        | OpenAI / Anthropic / Gemini     |
-| Vector DB  | Chroma / FAISS / Milvus         |
-| Framework  | LangChain / LlamaIndex / Custom |
-| Memory     | File-based / Graph-based        |
-| Deployment | Docker / Local / Cloud          |
-
-> Replace with your actual stack.
->
-> 请根据实际技术栈替换。
-
----
-
-# 📸 Demo | 演示
-
-## Example Prompt
-
-```text
-Summarize all AI agent research related to memory systems.
-```
-
-## Example Behavior
-
-* Retrieves related nodes from the knowledge tree
-* Injects long-term memory
-* Uses tools if necessary
-* Generates structured reasoning
-* Updates memory tree after completion
-
----
-
-# 🔬 Research Direction | 研究方向
-
-This project explores topics including:
-
-* Agent memory systems
-* Hierarchical retrieval
-* Autonomous knowledge growth
-* Multi-agent collaboration
-* Tree-based reasoning
-* Lightweight agent architecture
-* Long-context optimization
-
----
-
-# 🗺 Roadmap | 路线图
-
-## Near Term
-
-* [ ] Knowledge tree visualization
-* [ ] Memory compression
-* [ ] Reflection system
-* [ ] Multi-agent coordination
-* [ ] Tool sandboxing
-
-## Future
-
-* [ ] Self-evolving skills
-* [ ] Distributed memory network
-* [ ] Graph reasoning engine
-* [ ] Reinforcement learning integration
-* [ ] Agent operating system
-
----
-
-# 🤝 Contributing | 贡献指南
-
-Contributions are welcome.
-
-You can contribute by:
-
-* Opening issues
-* Submitting pull requests
-* Improving documentation
-* Adding tools or memory modules
-* Experimenting with new retrieval methods
-
----
-
-# 📜 License | 开源协议
-
-MIT License.
-
-Feel free to use, modify, and distribute.
-
----
-
-# 🌟 Inspiration | 灵感来源
-
-This project is inspired by modern agent systems and memory-centric AI research, including:
-
-* [GenericAgent GitHub Repository](https://github.com/lsdefine/GenericAgent?utm_source=chatgpt.com)
-* [GitAgent Protocol](https://www.gitagent.sh/?utm_source=chatgpt.com)
-* [Vercel Knowledge Agent Template](https://github.com/vercel-labs/knowledge-agent-template?utm_source=chatgpt.com)
-* Hierarchical memory and graph-based reasoning research
-
----
-
-# 👨‍💻 Author | 作者
-
-Created by [Lewis Wong GitHub](https://github.com/Lew1sWong?utm_source=chatgpt.com)
+MIT License — 自由使用、修改与分发。
 
 ---
 
 <div align="center">
 
-### ⭐ If you find this project interesting, consider giving it a star.
+作者 | Author: [Lewis Wong](https://github.com/Lew1sWong)
 
-### ⭐ 如果这个项目对你有帮助，欢迎点一个 Star！
+⭐ 如果这个项目对你有帮助，欢迎 Star！
+
+⭐ If you find this useful, please give it a star!
 
 </div>
