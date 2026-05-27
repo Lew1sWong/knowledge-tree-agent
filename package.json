@@ -1,22 +1,30 @@
 {
   "name": "knowledge-tree-agent",
   "version": "1.0.0",
-  "description": "费曼式知识树 AI Agent — 单文件四层架构，前后端可插入",
-  "main": "index.jsx",
-  "module": "index.jsx",
-  "exports": {
-    ".": "./index.jsx"
+  "description": "费曼式知识树 AI Agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node --env-file=.env server.js"
   },
-  "peerDependencies": {
-    "react": ">=18"
+  "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.16.3",
+    "express": "^4.19.2",
+    "express-session": "^1.18.1",
+    "gsap": "^3.15.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.167.1"
   },
-  "keywords": [
-    "claude",
-    "anthropic",
-    "knowledge-graph",
-    "react",
-    "agent",
-    "feynman"
-  ],
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.2"
+  },
   "license": "MIT"
 }

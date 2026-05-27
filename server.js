@@ -1,5 +1,5 @@
 /**
- * demo/server.js  —  知识树 Agent Demo 服务端 v3
+ * server.js  —  知识树 Agent 服务端 v3
  * ═══════════════════════════════════════════════════════════════
  *
  *  § A  配置 & 工具函数
@@ -24,6 +24,21 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 const scryptAsync = promisify(scrypt);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// ── System config file ────────────────────────────────────────────
+const CONFIG_FILE = path.join(__dirname, "config.json");
+const DEFAULT_CONFIG = { maxTrees: 4 };
+
+function loadConfig() {
+  try {
+    if (existsSync(CONFIG_FILE)) return { ...DEFAULT_CONFIG, ...JSON.parse(readFileSync(CONFIG_FILE, "utf8")) };
+  } catch (_) {}
+  return { ...DEFAULT_CONFIG };
+}
+
+function saveConfig(config) {
+  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
+}
 
 // ══════════════════════════════════════════════════════════════════
 // § A  配置 & 工具函数
@@ -265,6 +280,42 @@ ${rootDescriptions}
   return _parseJSON(d.content?.map(b => b.text ?? "").join("") ?? "");
 }
 
+// 多节点关联分析（2-4 个节点）
+async function analyzeAssociation(nodes) {
+  const { url, key, model } = getLLMConfig();
+  const nodeList = nodes.map((n, i) => `${i + 1}. 「${n}」`).join("\n");
+  const pairCount = (nodes.length * (nodes.length - 1)) / 2;
+
+  const prompt = `分析以下 ${nodes.length} 个知识概念之间的关联与共同点：
+
+${nodeList}
+
+输出 JSON（仅 JSON，无 markdown）：
+{
+  "pairs": [
+    {"from":"概念A","to":"概念B","relation":"关联类型（相似/因果/包含/互补/对立等）","strength":8,"reason":"2-3句具体关联说明"}
+  ],
+  "commonThemes": [
+    {"theme":"共同特征名称","nodes":["概念A","概念B"],"description":"具体说明这些概念如何体现这个共同特征"}
+  ],
+  "summary": "对这组概念整体关联的2-3句总结"
+}
+
+要求：
+- pairs 列出所有两两组合（共 ${pairCount} 对），strength 1-10，strength < 4 标记 relation 为"弱关联"
+- commonThemes 找出 2 个及以上节点共享的具体特征/属性/文化归属，如「都是中国12生肖」「嗅觉都十分灵敏」「都是人类驯化的家畜」
+- theme 名称要具体，不要写泛化标签
+- 宁可少，不编造
+- 所有文字中文`;
+
+  const body = JSON.stringify({ model, max_tokens: 1400, messages: [{ role: "user", content: prompt }] });
+  const headers = { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": key };
+  const res = await fetch(url, { method: "POST", headers, body });
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message);
+  return _parseJSON(d.content?.map(b => b.text ?? "").join("") ?? "");
+}
+
 // 节点对关联分析
 async function findNodeRelation(labelA, labelB) {
   const { url, key, model } = getLLMConfig();
@@ -433,6 +484,9 @@ input{width:100%;padding:11px 15px;background:rgba(6,6,14,0.8);
 input:focus{border-color:rgba(245,158,11,0.45);
   box-shadow:0 0 0 3px rgba(245,158,11,0.06)}
 input::placeholder{color:#2a2820}
+.pw-field{position:relative}
+.eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#3a3020;padding:4px;line-height:1;transition:color .15s}
+.eye-btn:hover{color:#9a8060}
 .err{color:#f87171;font-size:12px;margin-bottom:16px;padding:10px 13px;
   background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.2);
   border-radius:8px;display:flex;align-items:center;gap:7px}
@@ -476,7 +530,12 @@ button[type=submit]:active{transform:translateY(0)}
     </div>
     <div class="field">
       <label class="t" data-zh="密码" data-en="Password">密码</label>
-      <input type="password" name="password" placeholder="••••••••" autocomplete="current-password">
+      <div class="pw-field">
+        <input type="password" name="password" id="loginPw" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px">
+        <button type="button" class="eye-btn" onclick="togglePwVis('loginPw',this)" tabindex="-1">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
     </div>
     <button type="submit" class="t" data-zh="登&nbsp;&nbsp;录" data-en="Sign In">登&nbsp;&nbsp;录</button>
   </form>
@@ -507,6 +566,7 @@ function applyLang(lang){
 }
 function toggleLang(){curLang=curLang==='zh'?'en':'zh';localStorage.setItem('kt-lang',curLang);applyLang(curLang);}
 applyLang(curLang);
+function togglePwVis(id,btn){const inp=document.getElementById(id);const show=inp.type==='password';inp.type=show?'text':'password';btn.querySelector('svg').innerHTML=show?'<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>':'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';}
 </script>
 </body>
 </html>`;
@@ -566,7 +626,7 @@ app.put("/api/settings", requireAuth, (req, res) => {
 // § G  管理员后台
 // ══════════════════════════════════════════════════════════════════
 
-const ADMIN_HTML = (users, msg = "", msgType = "ok") => `<!DOCTYPE html>
+const ADMIN_HTML = (users, config = DEFAULT_CONFIG, msg = "", msgType = "ok") => `<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
@@ -630,6 +690,12 @@ select{padding:9px 13px;background:#080810;border:1px solid #1e1e2e;
 .pw-btn{padding:5px 13px;background:transparent;border:1px solid rgba(139,92,246,.3);
   color:#c4b5fd;font-size:12px;border-radius:7px;cursor:pointer;transition:all .15s;font-family:inherit;margin-right:6px}
 .pw-btn:hover{background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.6)}
+.pw-field{position:relative}
+.pw-field>input{padding-right:38px}
+.eye-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#3a3055;padding:4px;line-height:1;transition:color .15s}
+.eye-btn:hover{color:#8080a8}
+.reset-expand{margin-top:8px;display:none}
+.reset-inner{display:flex;align-items:center;gap:6px}
 </style>
 </head>
 <body>
@@ -651,11 +717,24 @@ select{padding:9px 13px;background:#080810;border:1px solid #1e1e2e;
   </div>
   ${msg ? `<div class="msg ${msgType}">${msg}</div>` : ""}
   <div class="section">
+    <div class="section-title t" data-zh="系统设置" data-en="System Settings">系统设置</div>
+    <form method="POST" action="/admin/config/update">
+      <div class="form-row" style="grid-template-columns:auto 1fr auto;align-items:end;gap:12px">
+        <div class="form-group">
+          <label class="t" data-zh="最大知识树数量" data-en="Max Knowledge Trees">最大知识树数量</label>
+          <input type="number" name="maxTrees" value="${config.maxTrees ?? 4}" min="2" max="20" style="width:80px">
+        </div>
+        <div style="font-size:11px;color:#2a2a45;padding-bottom:12px" class="t" data-zh="用户画布最多可同时显示的知识树数量（2-20，需重新登录生效）" data-en="Max knowledge trees on canvas (2-20, re-login to apply)">用户画布最多可同时显示的知识树数量（2-20，需重新登录生效）</div>
+        <button type="submit" class="add-btn t" data-zh="保存" data-en="Save">保存</button>
+      </div>
+    </form>
+  </div>
+  <div class="section">
     <div class="section-title t" data-zh="创建新用户" data-en="Create New User">创建新用户</div>
     <form method="POST" action="/admin/users/create">
       <div class="form-row">
         <div class="form-group"><label class="t" data-zh="用户名" data-en="Username">用户名</label><input type="text" name="username" class="t-ph" data-ph-zh="输入用户名" data-ph-en="Enter username" placeholder="输入用户名" required></div>
-        <div class="form-group"><label class="t" data-zh="密码" data-en="Password">密码</label><input type="password" name="password" class="t-ph" data-ph-zh="至少 6 位" data-ph-en="Min 6 chars" placeholder="至少 6 位" required minlength="6"></div>
+        <div class="form-group"><label class="t" data-zh="密码" data-en="Password">密码</label><div class="pw-field"><input type="password" name="password" id="createPw" class="t-ph" data-ph-zh="至少 6 位" data-ph-en="Min 6 chars" placeholder="至少 6 位" required minlength="6"><button type="button" class="eye-btn" onclick="togglePwVis('createPw',this)" tabindex="-1"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
         <div class="form-group">
           <label class="t" data-zh="角色" data-en="Role">角色</label>
           <select name="role">
@@ -682,13 +761,18 @@ select{padding:9px 13px;background:#080810;border:1px solid #1e1e2e;
           <td><span class="badge badge-${u.role} t" data-zh="${u.role === 'admin' ? '管理员' : '普通用户'}" data-en="${u.role === 'admin' ? 'Admin' : 'User'}">${u.role === 'admin' ? '管理员' : '普通用户'}</span></td>
           <td style="color:#3a3a55;font-size:12px">${new Date(u.createdAt).toLocaleString('zh-CN')}</td>
           <td>
-            <form method="POST" action="/admin/users/reset-password" style="display:inline">
-              <input type="hidden" name="userId" value="${u.id}">
-              <button type="submit" class="pw-btn t" data-zh="重置密码" data-en="Reset Pwd"
-                data-confirm-zh="重置 ${u.username} 的密码?" data-confirm-en="Reset password for ${u.username}?"
-                onclick="return confirm(window._lang==='en'?this.dataset.confirmEn:this.dataset.confirmZh)">重置密码</button>
-            </form>
-            <form method="POST" action="/admin/users/delete" style="display:inline">
+            <button type="button" class="pw-btn t" data-zh="重置密码" data-en="Reset Pwd" onclick="toggleReset('${u.id}',this)">重置密码</button>
+            <div class="reset-expand" id="reset-${u.id}">
+              <form method="POST" action="/admin/users/reset-password" class="reset-inner">
+                <input type="hidden" name="userId" value="${u.id}">
+                <div class="pw-field" style="flex:1;min-width:0">
+                  <input type="password" name="newPassword" id="rpw-${u.id}" placeholder="新密码 ≥ 6 位" minlength="6" required style="width:148px;padding:5px 34px 5px 10px;font-size:12px;background:#080810;border:1px solid #1e1e2e;border-radius:7px;color:#d0d0e8;outline:none;font-family:inherit">
+                  <button type="button" class="eye-btn" onclick="togglePwVis('rpw-${u.id}',this)" tabindex="-1"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                </div>
+                <button type="submit" class="pw-btn t" data-zh="确认" data-en="Confirm" style="flex-shrink:0">确认</button>
+              </form>
+            </div>
+            <form method="POST" action="/admin/users/delete" style="display:inline;margin-left:4px">
               <input type="hidden" name="userId" value="${u.id}">
               <button type="submit" class="del-btn t" data-zh="删除" data-en="Delete"
                 data-confirm-zh="确认删除 ${u.username}?" data-confirm-en="Delete ${u.username}?"
@@ -719,58 +803,70 @@ function applyLang(lang){
 }
 function toggleLang(){curLang=curLang==='zh'?'en':'zh';localStorage.setItem('kt-lang',curLang);applyLang(curLang);}
 applyLang(curLang);
+function toggleReset(uid,btn){const d=document.getElementById('reset-'+uid);const show=d.style.display==='none'||d.style.display==='';d.style.display=show?'block':'none';if(show){const inp=document.getElementById('rpw-'+uid);if(inp)inp.focus();}}
+function togglePwVis(id,btn){const inp=document.getElementById(id);const show=inp.type==='password';inp.type=show?'text':'password';btn.querySelector('svg').innerHTML=show?'<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>':'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';}
 </script>
 </body>
 </html>`;
 
 app.get("/admin", requireAuth, requireAdmin, (req, res) => {
-  res.send(ADMIN_HTML(loadUsers()));
+  res.send(ADMIN_HTML(loadUsers(), loadConfig()));
+});
+
+app.post("/admin/config/update", requireAuth, requireAdmin, (req, res) => {
+  const { maxTrees } = req.body;
+  const n = Math.max(2, Math.min(20, Number(maxTrees) || DEFAULT_CONFIG.maxTrees));
+  saveConfig({ ...loadConfig(), maxTrees: n });
+  res.send(ADMIN_HTML(loadUsers(), { ...loadConfig(), maxTrees: n }, _bi(`最大树数量已更新为 ${n}`, `Max trees updated to ${n}`), "ok"));
 });
 
 const _bi = (zh, en) => `<span class="t" data-zh="${zh}" data-en="${en}">${zh}</span>`;
 
 app.post("/admin/users/create", requireAuth, requireAdmin, async (req, res) => {
   const { username, password, role } = req.body;
+  const cfg = loadConfig();
   if (!username?.trim() || !password?.trim()) {
-    return res.send(ADMIN_HTML(loadUsers(), _bi("用户名和密码不能为空", "Username and password are required"), "err"));
+    return res.send(ADMIN_HTML(loadUsers(), cfg, _bi("用户名和密码不能为空", "Username and password are required"), "err"));
   }
   if (password.length < 6) {
-    return res.send(ADMIN_HTML(loadUsers(), _bi("密码至少 6 位", "Password must be at least 6 characters"), "err"));
+    return res.send(ADMIN_HTML(loadUsers(), cfg, _bi("密码至少 6 位", "Password must be at least 6 characters"), "err"));
   }
   const users = loadUsers();
   if (users.find(u => u.username === username.trim())) {
-    return res.send(ADMIN_HTML(users, _bi(`用户名「${username}」已存在`, `Username "${username}" already exists`), "err"));
+    return res.send(ADMIN_HTML(users, cfg, _bi(`用户名「${username}」已存在`, `Username "${username}" already exists`), "err"));
   }
   const passwordHash = await hashPassword(password);
   users.push({ id: randomBytes(8).toString("hex"), username: username.trim(), passwordHash, role: role === "admin" ? "admin" : "user", createdAt: new Date().toISOString(), preferences: { ...DEFAULT_PREFS } });
   saveUsers(users);
-  res.send(ADMIN_HTML(users, _bi(`用户「${username}」创建成功`, `User "${username}" created`), "ok"));
+  res.send(ADMIN_HTML(users, cfg, _bi(`用户「${username}」创建成功`, `User "${username}" created`), "ok"));
 });
 
 app.post("/admin/users/delete", requireAuth, requireAdmin, (req, res) => {
   const { userId } = req.body;
+  const cfg = loadConfig();
   let users = loadUsers();
   const target = users.find(u => u.id === userId);
-  if (!target) return res.send(ADMIN_HTML(users, _bi("用户不存在", "User not found"), "err"));
+  if (!target) return res.send(ADMIN_HTML(users, cfg, _bi("用户不存在", "User not found"), "err"));
   if (target.id === req.session.userId) {
-    return res.send(ADMIN_HTML(users, _bi("不能删除当前登录的账户", "Cannot delete your own account"), "err"));
+    return res.send(ADMIN_HTML(users, cfg, _bi("不能删除当前登录的账户", "Cannot delete your own account"), "err"));
   }
   users = users.filter(u => u.id !== userId);
   saveUsers(users);
-  res.send(ADMIN_HTML(users, _bi(`用户「${target.username}」已删除`, `User "${target.username}" deleted`), "ok"));
+  res.send(ADMIN_HTML(users, cfg, _bi(`用户「${target.username}」已删除`, `User "${target.username}" deleted`), "ok"));
 });
 
 app.post("/admin/users/reset-password", requireAuth, requireAdmin, async (req, res) => {
-  const { userId } = req.body;
+  const { userId, newPassword } = req.body;
+  const cfg = loadConfig();
   const users = loadUsers();
   const target = users.find(u => u.id === userId);
-  if (!target) return res.send(ADMIN_HTML(users, _bi("用户不存在", "User not found"), "err"));
-  const newPw = randomBytes(4).toString("hex");
-  target.passwordHash = await hashPassword(newPw);
+  if (!target) return res.send(ADMIN_HTML(users, cfg, _bi("用户不存在", "User not found"), "err"));
+  if (!newPassword || newPassword.length < 6) {
+    return res.send(ADMIN_HTML(users, cfg, _bi("密码至少 6 位", "Password must be at least 6 characters"), "err"));
+  }
+  target.passwordHash = await hashPassword(newPassword);
   saveUsers(users);
-  res.send(ADMIN_HTML(users,
-    `<span class="t" data-zh="「${target.username}」新密码：" data-en="New password for &quot;${target.username}&quot;: ">「${target.username}」新密码：</span><strong style="color:#fcd34d;font-size:15px;letter-spacing:.08em">${newPw}</strong><span class="t" data-zh="（请立即告知用户）" data-en=" — share with user immediately">（请立即告知用户）</span>`,
-    "ok"));
+  res.send(ADMIN_HTML(users, cfg, _bi(`「${target.username}」密码已更新`, `Password updated for "${target.username}"`), "ok"));
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -843,6 +939,12 @@ app.post("/api/expand", requireAuth, rateLimitMiddleware, async (req, res) => {
   }
 });
 
+// F3.5  公开配置（maxTrees 等）
+app.get("/api/config", requireAuth, (req, res) => {
+  const config = loadConfig();
+  res.json({ maxTrees: config.maxTrees ?? DEFAULT_CONFIG.maxTrees });
+});
+
 // F4  跨树关联分析
 app.post("/api/cross-relations", requireAuth, rateLimitMiddleware, async (req, res) => {
   const { roots } = req.body; // [{ concept, nodeLabels: string[] }]
@@ -863,6 +965,20 @@ app.post("/api/node-relation", requireAuth, rateLimitMiddleware, async (req, res
   if (!labelA?.trim() || !labelB?.trim()) return res.status(400).json({ error: "缺少 labelA/labelB 参数" });
   try {
     const result = await findNodeRelation(labelA.trim(), labelB.trim());
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// F5.5  多节点关联分析
+app.post("/api/association", requireAuth, rateLimitMiddleware, async (req, res) => {
+  const { nodes } = req.body;
+  if (!Array.isArray(nodes) || nodes.length < 2 || nodes.length > 4) {
+    return res.status(400).json({ error: "需要 2-4 个节点标签" });
+  }
+  try {
+    const result = await analyzeAssociation(nodes.map(n => String(n).trim()));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

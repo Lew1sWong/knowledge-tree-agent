@@ -15,6 +15,9 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
+gsap.registerPlugin(useGSAP)
 
 // ══════════════════════════════════════════════════════════════════
 // § 1  Color System & Constants
@@ -92,23 +95,37 @@ const LANG = {
     canvasEmpty: "输入概念，构建知识图谱",
     zoomIn: "放大", zoomOut: "缩小", fitView: "适应屏幕",
     assoc: {
-      btn:         "⟷ 关联模式",
-      btnActive:   "⟷ 退出关联",
-      pickA:       "点击第一个节点",
-      pickB:       "再点击第二个节点",
-      querying:    "分析关联中…",
-      autoBtn:     "⟷ 自动查找关联",
-      autoBusy:    "查找中…",
-      autoEmpty:   "未找到强关联节点（≥7分）",
-      modalTitle:  "节点关联分析",
-      strength:    "关联强度",
-      relation:    "关联类型",
-      reason:      "关联说明",
-      themes:      "共同主题",
-      close:       "关闭",
-      noResult:    "关联强度较弱",
-      autoResults: "自动关联结果",
-      viewPair:    "查看节点对",
+      btn:              "⟷ 关联模式",
+      btnActive:        "⟷ 退出关联",
+      pickNode:         "点击节点加入关联分析（最多4个）",
+      selectedLabel:    (n, max) => `已选 ${n}/${max} 个节点`,
+      minNodes:         "至少选择 2 个节点",
+      analyzeBtn:       "分析关联",
+      analyzing:        "正在分析关联…",
+      cancelBtn:        "取消分析",
+      clearSelection:   "清空选择",
+      resultTitle:      "关联分析",
+      pairsTitle:       "节点对关联",
+      themesTitle:      "共同点",
+      summaryTitle:     "整体分析",
+      extractBtn:       "↳ 提取为新知识树",
+      extractClearTitle:"画布已满",
+      extractClearDesc: (n) => `当前有 ${n} 棵树，提取将清空画布并创建关联树`,
+      extractClearConfirm: "清空并提取",
+      extractPickTitle: "选择要移除的树",
+      extractPickDesc:  "画布已满，请选择一棵移除后添加关联树",
+      extractCancel:    "取消",
+      strength:         "关联强度",
+      relation:         "关联类型",
+      reason:           "关联说明",
+      themes:           "共同主题",
+      close:            "关闭",
+      noResult:         "关联强度较弱",
+      autoBtn:          "⟷ 自动查找关联",
+      autoBusy:         "查找中…",
+      autoEmpty:        "未找到强关联节点（≥7分）",
+      autoResults:      "自动关联结果",
+      viewPair:         "查看节点对",
     },
     log: {
       start:       (c) => `◎ 开始探索: "${c}"`,
@@ -169,23 +186,37 @@ const LANG = {
     canvasEmpty: "Enter a concept to build a knowledge graph",
     zoomIn: "Zoom In", zoomOut: "Zoom Out", fitView: "Fit View",
     assoc: {
-      btn:         "⟷ Assoc Mode",
-      btnActive:   "⟷ Exit Assoc",
-      pickA:       "Click the first node",
-      pickB:       "Click the second node",
-      querying:    "Analyzing…",
-      autoBtn:     "⟷ Auto-find Relations",
-      autoBusy:    "Searching…",
-      autoEmpty:   "No strong relations found (≥7)",
-      modalTitle:  "Node Relation Analysis",
-      strength:    "Strength",
-      relation:    "Relation Type",
-      reason:      "Explanation",
-      themes:      "Shared Themes",
-      close:       "Close",
-      noResult:    "Weak relation",
-      autoResults: "Auto-relation Results",
-      viewPair:    "View Pair",
+      btn:              "⟷ Assoc Mode",
+      btnActive:        "⟷ Exit Assoc",
+      pickNode:         "Click nodes to add (max 4)",
+      selectedLabel:    (n, max) => `${n}/${max} nodes selected`,
+      minNodes:         "Select at least 2 nodes",
+      analyzeBtn:       "Analyze",
+      analyzing:        "Analyzing relations…",
+      cancelBtn:        "Cancel",
+      clearSelection:   "Clear",
+      resultTitle:      "Association Analysis",
+      pairsTitle:       "Pairwise Relations",
+      themesTitle:      "Common Traits",
+      summaryTitle:     "Summary",
+      extractBtn:       "↳ Extract as New Tree",
+      extractClearTitle:"Canvas Full",
+      extractClearDesc: (n) => `${n} trees on canvas. Extracting will clear all and add the association tree.`,
+      extractClearConfirm: "Clear & Extract",
+      extractPickTitle: "Choose Tree to Remove",
+      extractPickDesc:  "Canvas is full — remove one tree to add the association tree.",
+      extractCancel:    "Cancel",
+      strength:         "Strength",
+      relation:         "Relation Type",
+      reason:           "Explanation",
+      themes:           "Shared Themes",
+      close:            "Close",
+      noResult:         "Weak relation",
+      autoBtn:          "⟷ Auto-find Relations",
+      autoBusy:         "Searching…",
+      autoEmpty:        "No strong relations found (≥7)",
+      autoResults:      "Auto-relation Results",
+      viewPair:         "View Pair",
     },
     log: {
       start:       (c) => `◎ Exploring: "${c}"`,
@@ -501,12 +532,14 @@ export function useKnowledgeTree(agentConfig = {}, lang = "zh") {
 // § 6  useMultiRoots  —  多根知识树管理 Hook
 // ══════════════════════════════════════════════════════════════════
 
-export function useMultiRoots(agentConfig = {}, lang = "zh") {
+export function useMultiRoots(agentConfig = {}, lang = "zh", maxRootsLimit = MAX_ROOTS) {
   const cfgRef   = useRef(agentConfig);
   const langRef  = useRef(lang);
+  const maxRef   = useRef(maxRootsLimit);
   const rootsRef = useRef([]); // 最新 roots 快照（用于 expand 等回调）
   useEffect(() => { cfgRef.current = agentConfig; });
   useEffect(() => { langRef.current = lang; }, [lang]);
+  useEffect(() => { maxRef.current = maxRootsLimit; }, [maxRootsLimit]);
 
   const [roots, setRoots]               = useState([]); // [{id, concept, tree, nodes, edges, log, busy, color}]
   const [crossEdges, setCrossEdges]     = useState([]); // [{fromNodeLabel, toNodeLabel, fromRootId, toRootId, strength, reason}]
@@ -537,7 +570,7 @@ export function useMultiRoots(agentConfig = {}, lang = "zh") {
   const addRoot = useCallback(async (concept) => {
     if (!concept?.trim()) return;
     const currentRoots = rootsRef.current;
-    if (currentRoots.length >= MAX_ROOTS) return;
+    if (currentRoots.length >= maxRef.current) return;
     if (currentRoots.some(r => r.busy)) return;
 
     const rootId   = Date.now();
@@ -637,6 +670,31 @@ export function useMultiRoots(agentConfig = {}, lang = "zh") {
     _updateRoot(rootId, { busy: false, tree: { ...rootEntry.tree }, nodes: flattenTree(rootEntry.tree), edges: getTreeEdges(rootEntry.tree) });
   }, [_updateRoot]);
 
+  // ── 添加预构建树（关联提取用）──────────────────────────────────
+  const addPrebuiltRoot = useCallback((tree, concept, color) => {
+    const rootId   = Date.now() + Math.floor(Math.random() * 1000);
+    const colorIdx = rootsRef.current.length % ROOT_THEME_COLORS.length;
+    const c        = color || ROOT_THEME_COLORS[colorIdx];
+    treeLayout(tree);
+    const nodes = flattenTree(tree);
+    const edges = getTreeEdges(tree);
+    setRoots(prev => [...prev, { id: rootId, concept, tree, nodes, edges, log: ["✨ 关联树已提取"], busy: false, color: c }]);
+    setSelectedRootId(rootId);
+  }, []);
+
+  // ── 清空所有树并添加一棵预构建树 ─────────────────────────────
+  const clearAndAdd = useCallback((tree, concept, color) => {
+    const rootId   = Date.now() + Math.floor(Math.random() * 1000);
+    const c        = color || ROOT_THEME_COLORS[0];
+    treeLayout(tree);
+    const nodes = flattenTree(tree);
+    const edges = getTreeEdges(tree);
+    setCrossEdges([]);
+    setSelectedNode(null);
+    setRoots([{ id: rootId, concept, tree, nodes, edges, log: ["✨ 关联树已提取"], busy: false, color: c }]);
+    setSelectedRootId(rootId);
+  }, []);
+
   // ── 跨树关联分析 ────────────────────────────────────────────────
   const findCrossRelations = useCallback(async () => {
     const doneTrees = rootsRef.current.filter(r => !r.busy && r.nodes.length > 0);
@@ -685,12 +743,14 @@ export function useMultiRoots(agentConfig = {}, lang = "zh") {
     selectedRootId,
     setSelectedRootId,
     addRoot,
+    addPrebuiltRoot,
+    clearAndAdd,
     removeRoot,
     clearAll,
     cancelSearch,
     expand,
     findCrossRelations,
-    maxRootsReached: roots.length >= MAX_ROOTS,
+    maxRootsReached: roots.length >= maxRef.current,
   };
 }
 
@@ -880,7 +940,7 @@ function _bezier(x1, y1, x2, y2) {
   return `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
 }
 
-function _TreeNodeSVG({ node, selected, onSelect, onExpand, themeColor }) {
+function _TreeNodeSVG({ node, selected, assocSelected, onSelect, onExpand, themeColor }) {
   const c    = LC(node.level);
   const r    = NR(node.level);
   const strokeOverride = node.level === 0 && themeColor ? themeColor : c.stroke;
@@ -922,6 +982,15 @@ function _TreeNodeSVG({ node, selected, onSelect, onExpand, themeColor }) {
           <animateTransform attributeName="transform" type="rotate" from={`0 ${node.x} ${node.y}`} to={`360 ${node.x} ${node.y}`} dur="6s" repeatCount="indefinite" />
         </circle>
       )}
+      {assocSelected && (
+        <>
+          <circle cx={node.x} cy={node.y} r={r + 10} fill="none" stroke="#8b5cf6" strokeWidth={2} opacity={0.7}>
+            <animate attributeName="r" values={`${r+8};${r+16};${r+8}`} dur="1.6s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.6s" repeatCount="indefinite" />
+          </circle>
+          <circle cx={node.x} cy={node.y} r={r + 6} fill="rgba(139,92,246,0.1)" stroke="#8b5cf6" strokeWidth={1.5} opacity={0.5} />
+        </>
+      )}
       <circle cx={node.x} cy={node.y} r={r} fill={isDone || isLoad ? c.fill : "#0b0b16"} stroke={strokeOverride} strokeWidth={isDone ? 1.5 : isPend ? 0.5 : 1} opacity={isPend ? 0.28 : 1}
         style={{ cursor: isDone ? "pointer" : "default", transition: "opacity .35s" }} onClick={handleClick} />
       {isLoad && arcR > 0 && (
@@ -940,6 +1009,7 @@ function _TreeNodeSVG({ node, selected, onSelect, onExpand, themeColor }) {
       )}
       {canExp && (
         <g style={{ cursor: "pointer" }} onClick={e => { e.stopPropagation(); onExpand?.(node.id); }}>
+          <circle cx={node.x} cy={node.y + r + 36} r={18} fill="transparent" />
           <circle cx={node.x} cy={node.y + r + 36} r={9} fill={c.fill} stroke={strokeOverride} strokeWidth={1} opacity={0.85} />
           <text x={node.x} y={node.y + r + 37} textAnchor="middle" dominantBaseline="central" fontSize={14} fill={strokeOverride} style={{ userSelect: "none", pointerEvents: "none" }}>+</text>
         </g>
@@ -949,7 +1019,7 @@ function _TreeNodeSVG({ node, selected, onSelect, onExpand, themeColor }) {
   );
 }
 
-export function KnowledgeTreeView({ nodes = [], edges = [], selectedNode, onNodeSelect, onNodeExpand, themeColor, xOffset = 0, yOffset = 0, lang = "zh" }) {
+export function KnowledgeTreeView({ nodes = [], edges = [], selectedNode, assocNodeIds = null, onNodeSelect, onNodeExpand, themeColor, xOffset = 0, yOffset = 0, lang = "zh" }) {
   const svgRef   = useRef(null);
   const groupRef = useRef(null);
   const dragRef  = useRef({ active: false, ox: 0, oy: 0 });
@@ -1010,7 +1080,7 @@ export function KnowledgeTreeView({ nodes = [], edges = [], selectedNode, onNode
             const active = b.status !== "pending";
             return <path key={i} d={_bezier(a.x + xOffset, a.y + NR(a.level) + yOffset, b.x + xOffset, b.y - NR(b.level) - 2 + yOffset)} fill="none" stroke={active ? bc.stroke : "#1e1e2e"} strokeWidth={active ? 1.5 : 0.8} strokeOpacity={active ? 0.38 : 0.2} strokeDasharray={active ? undefined : "6 4"} />;
           })}
-          {nodes.map(n => <_TreeNodeSVG key={n.id} node={{ ...n, x: n.x + xOffset, y: n.y + yOffset }} selected={selectedNode?.id === n.id} onSelect={onNodeSelect} onExpand={onNodeExpand} themeColor={themeColor} />)}
+          {nodes.map(n => <_TreeNodeSVG key={n.id} node={{ ...n, x: n.x + xOffset, y: n.y + yOffset }} selected={selectedNode?.id === n.id} assocSelected={assocNodeIds?.has(n.id) ?? false} onSelect={onNodeSelect} onExpand={onNodeExpand} themeColor={themeColor} />)}
         </g>
       </svg>
       <div style={{ position: "absolute", bottom: 16, left: 16, display: "flex", gap: 5 }}>
@@ -1040,13 +1110,18 @@ function _fitView(nodes, svgEl, transRef, applyT) {
 // ══════════════════════════════════════════════════════════════════
 
 function _NodeDetail({ node, allNodes, onSelect, themeColor, lang = "zh", onAutoRelation, autoRelationBusy, autoRelationResults, onViewPair }) {
+  const containerRef = useRef(null)
+  useGSAP(() => {
+    gsap.from(containerRef.current, { x: 14, opacity: 0, duration: 0.26, ease: 'power2.out' })
+  }, { scope: containerRef, dependencies: [node.id], revertOnUpdate: true })
+
   const tl = LANG[lang];
   const c = LC(node.level);
   const strokeOverride = node.level === 0 && themeColor ? themeColor : c.stroke;
   const parent = node.level > 0 ? allNodes.find(n => n.children.some(ch => ch.id === node.id)) : null;
 
   return (
-    <div style={{ padding: 16, animation: "kt3-fadeUp .22s ease" }}>
+    <div ref={containerRef} style={{ padding: 16 }}>
       <div style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, padding:"2px 10px", borderRadius:20, marginBottom:10, background:`${strokeOverride}18`, border:`1px solid ${strokeOverride}45`, color:c.text }}>
         <span style={{ width:5, height:5, borderRadius:"50%", background:strokeOverride, display:"inline-block" }} />
         {tl.levelNames[Math.min(node.level, 4)]}
@@ -1137,96 +1212,253 @@ function _NodeDetail({ node, allNodes, onSelect, themeColor, lang = "zh", onAuto
 }
 
 // ══════════════════════════════════════════════════════════════════
-// § 10a  _RelationModal  —  关联分析弹窗
+// § 10a  _AssocAnimation  —  关联分析动画覆盖层
 // ══════════════════════════════════════════════════════════════════
 
-function _RelationModal({ nodeA, nodeB, result, busy, onClose, lang = "zh" }) {
-  const tl = LANG[lang].assoc;
-  if (!nodeA) return null;
+function _AssocAnimation({ nodes, lang, onCancel }) {
+  const overlayRef = useRef(null);
+  const analyzingTextRef = useRef(null);
+  const tl_l = LANG[lang].assoc;
 
-  const strengthColor = result
-    ? result.strength >= 8 ? "#10b981"
-    : result.strength >= 6 ? "#f59e0b"
-    : "#f43f5e"
-    : "#8b5cf6";
+  const n  = nodes.length;
+  const cx = 140, cy = 140;
+  const radius = n <= 2 ? 70 : n <= 3 ? 78 : 86;
+  const positions = nodes.map((_, i) => ({
+    x: cx + radius * Math.cos((i / n) * 2 * Math.PI - Math.PI / 2),
+    y: cy + radius * Math.sin((i / n) * 2 * Math.PI - Math.PI / 2),
+  }));
 
-  const lcA = LC(nodeA.level);
-  const lcB = nodeB ? LC(nodeB.level) : null;
+  useGSAP(() => {
+    gsap.from(overlayRef.current, { opacity: 0, duration: 0.3 });
+    positions.forEach((_, i) => {
+      gsap.from(`#_aa_chip_${i}`, { scale: 0, opacity: 0, duration: 0.5, delay: i * 0.12, ease: 'back.out(1.8)', transformOrigin: 'center' });
+    });
+    gsap.to(analyzingTextRef.current, {
+      opacity: 0.35, duration: 0.75, ease: 'sine.inOut', yoyo: true, repeat: -1,
+    });
+  }, { scope: overlayRef });
 
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.72)", backdropFilter:"blur(6px)" }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ width:480, maxWidth:"95vw", background:"#0c0c1a", border:"1px solid #1e1e32", borderRadius:16, overflow:"hidden", boxShadow:"0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(139,92,246,0.12)", animation:"kt3-fadeUp .2s ease" }}>
+    <div ref={overlayRef} style={{ position:"fixed", inset:0, zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.92)", backdropFilter:"blur(12px)", gap:28 }}>
+      <svg width={280} height={280} viewBox="0 0 280 280" style={{ overflow:"visible" }}>
+        {/* Outer slow-rotating ring */}
+        <circle cx={cx} cy={cy} r={cx - 6} fill="none" stroke="rgba(139,92,246,0.1)" strokeWidth={1} strokeDasharray="7 5">
+          <animateTransform attributeName="transform" type="rotate" from={`0 ${cx} ${cy}`} to={`360 ${cx} ${cy}`} dur="12s" repeatCount="indefinite" />
+        </circle>
+        {/* Inner fast-rotating ring */}
+        <circle cx={cx} cy={cy} r={cx - 22} fill="none" stroke="rgba(139,92,246,0.07)" strokeWidth={1} strokeDasharray="4 6">
+          <animateTransform attributeName="transform" type="rotate" from={`0 ${cx} ${cy}`} to={`-360 ${cx} ${cy}`} dur="7s" repeatCount="indefinite" />
+        </circle>
+        {/* Center pulse */}
+        <circle cx={cx} cy={cy} r={26} fill="rgba(139,92,246,0.12)" stroke="#8b5cf6" strokeWidth={1.5} opacity={0.65}>
+          <animate attributeName="r" values="24;34;24" dur="2s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.65;0.2;0.65" dur="2s" repeatCount="indefinite" />
+        </circle>
+        <text x={cx} y={cy + 2} textAnchor="middle" dominantBaseline="central" fontSize={18} fill="#8b5cf6" opacity={0.75} fontFamily="sans-serif">⟷</text>
+        {/* Connection lines between all pairs */}
+        {positions.map((p, i) => positions.slice(i + 1).map((p2, j) => (
+          <line key={`${i}-${j}`} x1={p.x} y1={p.y} x2={p2.x} y2={p2.y} stroke="#8b5cf6" strokeWidth={1.2} opacity={0.28} strokeDasharray="5 4">
+            <animate attributeName="stroke-dashoffset" values="0;-18;0" dur={`${1.8 + i * 0.2}s`} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.28;0.55;0.28" dur={`${1.6 + j * 0.25}s`} repeatCount="indefinite" />
+          </line>
+        )))}
+        {/* Node chips */}
+        {positions.map((pos, i) => {
+          const node = nodes[i];
+          const c = LC(node?.level ?? 0);
+          const label = node?.label ?? "";
+          const short = label.length > 5 ? label.slice(0, 5) + "…" : label;
+          return (
+            <g id={`_aa_chip_${i}`} key={i}>
+              <circle cx={pos.x} cy={pos.y} r={26} fill={c.fill} stroke={c.stroke} strokeWidth={1.8} />
+              <circle cx={pos.x} cy={pos.y} r={26} fill="none" stroke={c.stroke} strokeWidth={1} opacity={0.35}>
+                <animate attributeName="r" values="26;36;26" dur={`${2.2 + i * 0.3}s`} repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.35;0;0.35" dur={`${2.2 + i * 0.3}s`} repeatCount="indefinite" />
+              </circle>
+              <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="central" fontSize={11} fill={c.text} fontFamily="-apple-system,BlinkMacSystemFont,sans-serif" fontWeight="500">{short}</text>
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ textAlign:"center", maxWidth:320 }}>
+        <p ref={analyzingTextRef} style={{ fontSize:15, color:"#c4b5fd", margin:"0 0 10px", letterSpacing:"0.02em" }}>{tl_l.analyzing}</p>
+        <p style={{ fontSize:12, color:"#4a4a6a", margin:0, lineHeight:1.7 }}>{nodes.map(nd => nd.label).join("  ×  ")}</p>
+      </div>
+      <button onClick={onCancel}
+        style={{ padding:"9px 28px", borderRadius:10, border:"1px solid rgba(251,113,133,.4)", background:"rgba(251,113,133,.06)", color:"#fda4af", fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(251,113,133,.75)"; e.currentTarget.style.background = "rgba(251,113,133,.1)"; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(251,113,133,.4)";  e.currentTarget.style.background = "rgba(251,113,133,.06)"; }}
+      >{tl_l.cancelBtn}</button>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// § 10b  _AssocResultModal  —  关联分析结果弹窗
+// ══════════════════════════════════════════════════════════════════
+
+function _AssocResultModal({ nodes, result, lang, onClose, onExtract }) {
+  const modalRef = useRef(null);
+  const tl_l = LANG[lang].assoc;
+
+  useGSAP(() => {
+    const tl = gsap.timeline({ defaults: { ease: 'power2.out' } })
+    tl.from(modalRef.current, { scale: 0.92, opacity: 0, y: 16, duration: 0.35, ease: 'back.out(1.5)' })
+      .from('.kt3-result-card', { y: 14, opacity: 0, duration: 0.28, stagger: 0.065, immediateRender: false }, '-=0.1')
+      .from('.kt3-strength-fill', { scaleX: 0, duration: 0.55, stagger: 0.065, transformOrigin: 'left center', immediateRender: false }, '<0.08')
+  }, { scope: modalRef });
+
+  const sc = (s) => s >= 8 ? "#10b981" : s >= 6 ? "#f59e0b" : s >= 4 ? "#f43f5e" : "#4a4a6a";
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:1500, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.78)", backdropFilter:"blur(6px)" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={modalRef} style={{ width:540, maxWidth:"94vw", maxHeight:"82vh", background:"#0c0c1a", border:"1px solid #1e1e32", borderRadius:16, overflow:"hidden", display:"flex", flexDirection:"column", boxShadow:"0 32px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(139,92,246,0.1)" }}>
 
         {/* Header */}
-        <div style={{ padding:"14px 20px", borderBottom:"1px solid #12121e", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:13, fontWeight:600, color:"#c4b5fd" }}>{tl.modalTitle}</span>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#3a3a55", fontSize:18, cursor:"pointer", lineHeight:1, padding:"0 2px" }}>×</button>
-        </div>
-
-        {/* Node pair */}
-        <div style={{ padding:"16px 20px", display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ flex:1, padding:"10px 14px", borderRadius:10, border:`1px solid ${lcA.stroke}40`, background:`${lcA.fill}cc` }}>
-            <div style={{ fontSize:10, color:lcA.stroke, opacity:.6, marginBottom:4, letterSpacing:".06em", textTransform:"uppercase" }}>A</div>
-            <div style={{ fontSize:14, fontWeight:500, color:lcA.text }}>{nodeA.label}</div>
+        <div style={{ padding:"14px 20px", borderBottom:"1px solid #12121e", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+          <span style={{ fontSize:13, fontWeight:600, color:"#c4b5fd" }}>{tl_l.resultTitle}</span>
+          <div style={{ display:"flex", gap:5, flexWrap:"wrap", flex:1 }}>
+            {nodes.map((nd, i) => {
+              const c = LC(nd.level);
+              return <span key={i} style={{ fontSize:11, padding:"2px 9px", borderRadius:10, border:`1px solid ${c.stroke}40`, background:`${c.fill}dd`, color:c.text }}>{nd.label}</span>;
+            })}
           </div>
-          <div style={{ fontSize:20, color:"#4a4a6a", flexShrink:0 }}>⟷</div>
-          {nodeB
-            ? <div style={{ flex:1, padding:"10px 14px", borderRadius:10, border:`1px solid ${lcB.stroke}40`, background:`${lcB.fill}cc` }}>
-                <div style={{ fontSize:10, color:lcB.stroke, opacity:.6, marginBottom:4, letterSpacing:".06em", textTransform:"uppercase" }}>B</div>
-                <div style={{ fontSize:14, fontWeight:500, color:lcB.text }}>{nodeB.label}</div>
-              </div>
-            : <div style={{ flex:1, padding:"10px 14px", borderRadius:10, border:"1px dashed #1e1e32", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <span style={{ fontSize:12, color:"#2a2a45", fontStyle:"italic" }}>点击一个节点</span>
-              </div>
-          }
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#3a3a55", fontSize:18, cursor:"pointer", lineHeight:1 }}>×</button>
         </div>
 
-        {/* Result */}
-        <div style={{ padding:"0 20px 20px" }}>
-          {busy && (
-            <div style={{ padding:"18px 0", textAlign:"center", color:"#4a4a6a", fontSize:13, animation:"kt3-pulse 1.2s infinite" }}>{tl.querying}</div>
-          )}
-          {!busy && result && (
-            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {/* Strength bar */}
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:11, color:"#3a3a55", width:60, flexShrink:0 }}>{tl.strength}</span>
-                <div style={{ flex:1, height:6, background:"#14142a", borderRadius:3, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${result.strength * 10}%`, background:strengthColor, borderRadius:3, transition:"width .5s ease" }} />
-                </div>
-                <span style={{ fontSize:13, fontWeight:600, color:strengthColor, width:28, textAlign:"right", flexShrink:0 }}>{result.strength}</span>
+        {/* Scrollable body */}
+        <div style={{ flex:1, overflowY:"auto", padding:"18px 20px", display:"flex", flexDirection:"column", gap:20 }}>
+
+          {/* Pairwise relations */}
+          {result.pairs?.length > 0 && (
+            <div>
+              <p style={{ fontSize:10, color:"#3a3a55", letterSpacing:".08em", textTransform:"uppercase", margin:"0 0 10px" }}>{tl_l.pairsTitle}</p>
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {result.pairs.map((pair, i) => {
+                  const c = sc(pair.strength);
+                  return (
+                    <div key={i} className="kt3-result-card" style={{ padding:"11px 14px", borderRadius:10, border:`1px solid ${c}28`, background:`${c}08` }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                        <span style={{ fontSize:12, color:"#9090b0", fontWeight:500 }}>{pair.from}</span>
+                        <span style={{ fontSize:11, color:"#2a2a45" }}>⟷</span>
+                        <span style={{ fontSize:12, color:"#9090b0", fontWeight:500 }}>{pair.to}</span>
+                        <span style={{ marginLeft:"auto", fontSize:11, padding:"1px 8px", borderRadius:10, border:`1px solid ${c}40`, color:c, background:`${c}14` }}>{pair.relation}</span>
+                        <span style={{ fontSize:13, fontWeight:600, color:c, width:20, textAlign:"right", flexShrink:0 }}>{pair.strength}</span>
+                      </div>
+                      <div style={{ height:3, background:"#14142a", borderRadius:2, overflow:"hidden", marginBottom:pair.reason ? 8 : 0 }}>
+                        <div className="kt3-strength-fill" style={{ height:"100%", width:`${pair.strength * 10}%`, background:c, borderRadius:2 }} />
+                      </div>
+                      {pair.reason && <p style={{ fontSize:12, color:"#7070a0", lineHeight:1.7, margin:0 }}>{pair.reason}</p>}
+                    </div>
+                  );
+                })}
               </div>
-              {/* Relation type */}
-              {result.relation && (
-                <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-                  <span style={{ fontSize:11, color:"#3a3a55", width:60, flexShrink:0, paddingTop:2 }}>{tl.relation}</span>
-                  <span style={{ fontSize:12, padding:"2px 10px", borderRadius:20, border:`1px solid ${strengthColor}40`, background:`${strengthColor}12`, color:strengthColor }}>{result.relation}</span>
-                </div>
-              )}
-              {/* Reason */}
-              {result.reason && (
-                <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-                  <span style={{ fontSize:11, color:"#3a3a55", width:60, flexShrink:0, paddingTop:2 }}>{tl.reason}</span>
-                  <p style={{ fontSize:13, color:"#8080a0", lineHeight:1.75, margin:0 }}>{result.reason}</p>
-                </div>
-              )}
-              {/* Shared themes */}
-              {result.sharedThemes?.length > 0 && (
-                <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-                  <span style={{ fontSize:11, color:"#3a3a55", width:60, flexShrink:0, paddingTop:2 }}>{tl.themes}</span>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                    {result.sharedThemes.map((t, i) => (
-                      <span key={i} style={{ fontSize:11, padding:"2px 8px", borderRadius:10, border:"1px solid #2a2a3e", color:"#6060a0", background:"#12121e" }}>{t}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
-          {!busy && !result && nodeB && (
-            <div style={{ padding:"14px 0", textAlign:"center", color:"#2a2a45", fontSize:12 }}>{tl.noResult}</div>
+
+          {/* Common themes */}
+          {result.commonThemes?.length > 0 && (
+            <div>
+              <p style={{ fontSize:10, color:"#3a3a55", letterSpacing:".08em", textTransform:"uppercase", margin:"0 0 10px" }}>{tl_l.themesTitle}</p>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {result.commonThemes.map((theme, i) => (
+                  <div key={i} className="kt3-result-card" style={{ padding:"11px 14px", borderRadius:10, border:"1px solid rgba(16,185,129,0.22)", background:"rgba(16,185,129,0.05)" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                      <span style={{ fontSize:13, color:"#6ee7b7", fontWeight:500 }}>✦ {theme.theme}</span>
+                      {theme.nodes?.map((nd, j) => (
+                        <span key={j} style={{ fontSize:10, padding:"1px 7px", borderRadius:8, border:"1px solid rgba(16,185,129,0.25)", color:"#6ee7b7", opacity:.6 }}>{nd}</span>
+                      ))}
+                    </div>
+                    {theme.description && <p style={{ fontSize:12, color:"#6a8a78", lineHeight:1.65, margin:0 }}>{theme.description}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Summary */}
+          {result.summary && (
+            <div>
+              <p style={{ fontSize:10, color:"#3a3a55", letterSpacing:".08em", textTransform:"uppercase", margin:"0 0 10px" }}>{tl_l.summaryTitle}</p>
+              <p style={{ fontSize:13, color:"#8080a0", lineHeight:1.85, margin:0, borderLeft:"2px solid rgba(139,92,246,0.4)", paddingLeft:12 }}>{result.summary}</p>
+            </div>
           )}
         </div>
+
+        {/* Footer */}
+        <div style={{ padding:"12px 20px", borderTop:"1px solid #12121e", display:"flex", alignItems:"center", justifyContent:"flex-end", gap:10, flexShrink:0 }}>
+          <button onClick={onClose}
+            style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #1e1e2e", background:"transparent", color:"#4a4a6a", fontSize:12, cursor:"pointer", fontFamily:"inherit", transition:"border-color .15s" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a4a"}
+            onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e2e"}
+          >{tl_l.close}</button>
+          {(result.commonThemes?.length > 0 || result.pairs?.length > 0) && (
+            <button onClick={onExtract}
+              style={{ padding:"8px 20px", borderRadius:8, border:"1px solid rgba(245,158,11,.5)", background:"#1c0e00", color:"#fcd34d", fontSize:12, fontWeight:500, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(245,158,11,.9)"; e.currentTarget.style.background = "#221200"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(245,158,11,.5)"; e.currentTarget.style.background = "#1c0e00"; }}
+            >{tl_l.extractBtn}</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// § 10c  _ExtractModal  —  提取树时的树数量管理
+// ══════════════════════════════════════════════════════════════════
+
+function _ExtractModal({ roots, maxTrees, lang, onPickAndExtract, onClearAndExtract, onCancel }) {
+  const modalRef = useRef(null);
+  const tl_l = LANG[lang].assoc;
+  const isOverLimit = roots.length >= maxTrees;
+
+  useGSAP(() => {
+    gsap.from(modalRef.current, { scale: 0.92, opacity: 0, y: 12, duration: 0.28, ease: 'back.out(1.5)' });
+  }, { scope: modalRef });
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:1600, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.78)", backdropFilter:"blur(6px)" }}>
+      <div ref={modalRef} style={{ width:380, maxWidth:"90vw", background:"#0c0c1a", border:"1px solid #1e1e32", borderRadius:16, overflow:"hidden", boxShadow:"0 32px 80px rgba(0,0,0,0.85)" }}>
+        <div style={{ padding:"16px 20px", borderBottom:"1px solid #12121e" }}>
+          <p style={{ fontSize:13, fontWeight:600, color:"#d0d0e8", margin:0 }}>{isOverLimit ? tl_l.extractClearTitle : tl_l.extractPickTitle}</p>
+          <p style={{ fontSize:12, color:"#4a4a6a", margin:"7px 0 0", lineHeight:1.65 }}>
+            {isOverLimit ? tl_l.extractClearDesc(roots.length) : tl_l.extractPickDesc}
+          </p>
+        </div>
+
+        {isOverLimit ? (
+          <div style={{ padding:"16px 20px", display:"flex", gap:10, justifyContent:"flex-end" }}>
+            <button onClick={onCancel}
+              style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #1e1e2e", background:"transparent", color:"#4a4a6a", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+              {tl_l.extractCancel}
+            </button>
+            <button onClick={onClearAndExtract}
+              style={{ padding:"8px 20px", borderRadius:8, border:"1px solid rgba(251,113,133,.5)", background:"rgba(251,113,133,.06)", color:"#fda4af", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+              {tl_l.extractClearConfirm}
+            </button>
+          </div>
+        ) : (
+          <div style={{ padding:"12px 20px 18px", display:"flex", flexDirection:"column", gap:6 }}>
+            {roots.map(r => (
+              <button key={r.id} onClick={() => onPickAndExtract(r.id)}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderRadius:10, border:"1px solid #1e1e2e", background:"transparent", cursor:"pointer", fontFamily:"inherit", color:"#9090b0", fontSize:13, textAlign:"left", transition:"all .15s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(244,63,94,.4)"; e.currentTarget.style.color = "#fda4af"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e1e2e"; e.currentTarget.style.color = "#9090b0"; }}
+              >
+                <span style={{ width:8, height:8, borderRadius:"50%", background:r.color, flexShrink:0, display:"inline-block" }} />
+                <span style={{ flex:1 }}>{r.concept}</span>
+                <span style={{ fontSize:11, color:"#3a3a55" }}>移除 →</span>
+              </button>
+            ))}
+            <button onClick={onCancel}
+              style={{ padding:"8px 0", borderRadius:8, border:"none", background:"transparent", color:"#3a3a55", fontSize:12, cursor:"pointer", fontFamily:"inherit", marginTop:4 }}>
+              {tl_l.extractCancel}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1239,7 +1471,6 @@ function _RelationModal({ nodeA, nodeB, result, busy, onClose, lang = "zh" }) {
 const _CSS = `
   @keyframes kt3-fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
   @keyframes kt3-pulse  { 0%,100%{opacity:.6} 50%{opacity:1} }
-  .kt3-log-line{animation:kt3-fadeUp .15s ease}
   .kt3-input{flex:1;padding:9px 14px;border-radius:8px;border:1px solid #1e1e2e;background:#0d0d18;color:#d0d0e8;font-size:14px;outline:none;font-family:inherit;transition:border-color .2s}
   .kt3-input:focus{border-color:#3a3a5a}
   .kt3-input:disabled{opacity:.45}
@@ -1251,7 +1482,7 @@ const _CSS = `
   .kt3-btn-primary:hover:not(:disabled){border-color:#f59e0b;background:#221100}
   .kt3-btn-danger{border-color:rgba(244,63,94,.35);background:transparent;color:#fda4af}
   .kt3-btn-danger:hover:not(:disabled){border-color:rgba(244,63,94,.7);background:rgba(244,63,94,.06)}
-  .kt3-depth{padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #1a1a2e;background:transparent;color:#444460;font-family:inherit;transition:all .15s}
+  .kt3-depth{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid #1a1a2e;background:transparent;color:#444460;font-family:inherit;transition:all .15s}
   .kt3-depth:hover{color:#7070aa;border-color:#2a2a4a}
   .kt3-depth.on{border-color:#f59e0b60;background:#1c0e00;color:#fcd34d}
   .kt3-root-tab{display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:8px;border:1px solid transparent;background:transparent;color:#4a4a6a;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
@@ -1268,13 +1499,225 @@ const _CSS = `
   ::-webkit-scrollbar{width:4px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:#1e1e2e;border-radius:2px}
+  .kt3-input{font-size:16px!important}
+  @media(max-width:767px){
+    .kt3-topbar{padding:6px 12px!important;gap:8px!important}
+    .kt3-topbar-tagline{display:none!important}
+    .kt3-topbar-right{gap:6px!important}
+    .kt3-searchbar{flex-wrap:wrap!important;padding:6px 12px!important;gap:6px!important}
+    .kt3-searchbar-row2{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%}
+    .kt3-depth{padding:8px 14px!important;min-height:40px;font-size:13px!important}
+    .kt3-btn{padding:8px 14px!important;min-height:40px;font-size:13px!important}
+    .kt3-cross-btn,.kt3-assoc-btn{padding:8px 12px!important;min-height:40px;font-size:12px!important}
+    .kt3-bottom-sheet{position:fixed;left:0;right:0;bottom:0;z-index:500;background:#09090f;border-top:1px solid #10101a;border-radius:16px 16px 0 0;max-height:65vh;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.7);transform:translateY(105%);transition:transform .32s cubic-bezier(.32,.72,0,1);will-change:transform}
+    .kt3-bottom-sheet.open{transform:translateY(0)}
+    .kt3-bottom-sheet-handle{width:40px;height:4px;background:#2a2a40;border-radius:2px;margin:10px auto 4px;flex-shrink:0;cursor:pointer}
+    .kt3-bottom-sheet-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  }
 `;
 
+// ── _LogLine: single log entry with mount animation ───────────────
+
+function _LogLine({ text }) {
+  const lineRef = useRef(null)
+  useGSAP(() => {
+    gsap.from(lineRef.current, { y: 6, opacity: 0, duration: 0.18, ease: 'power1.out' })
+  }, { scope: lineRef })
+  return (
+    <p ref={lineRef} style={{ fontSize:11, color:"#303050", margin:"0 0 2px", lineHeight:1.6, fontFamily:"'SF Mono','Fira Code',monospace" }}>{text}</p>
+  )
+}
+
+// ── _RootTab: root tab button with pop-in animation ───────────────
+
+function _RootTab({ root, active, onSelect, onRemove }) {
+  const tabRef = useRef(null)
+  useGSAP(() => {
+    gsap.from(tabRef.current, { scale: 0.72, opacity: 0, duration: 0.38, ease: 'back.out(2.4)' })
+  }, { scope: tabRef })
+
+  return (
+    <div ref={tabRef} style={{ display:"flex", alignItems:"center" }}>
+      <button className={`kt3-root-tab${active ? " active" : ""}`} onClick={() => onSelect(root.id)}>
+        <span className="kt3-root-dot" style={{ background:root.color, boxShadow:root.busy?`0 0 6px ${root.color}`:undefined, animation:root.busy?"kt3-pulse 1s infinite":undefined }} />
+        <span>{root.concept}</span>
+        {root.busy && <span style={{ fontSize:10, color:root.color, opacity:.7 }}>…</span>}
+      </button>
+      <button onClick={() => onRemove(root.id)} title="移除此树" style={{ width:16, height:16, borderRadius:"50%", background:"transparent", border:"none", color:"#2a2a40", cursor:"pointer", fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", marginLeft:-2, transition:"color .15s" }} onMouseEnter={e=>e.currentTarget.style.color="#f87171"} onMouseLeave={e=>e.currentTarget.style.color="#2a2a40"}>×</button>
+    </div>
+  )
+}
+
+// ── _AssocChip: single selected node chip with pop-in ─────────────
+
+function _AssocChip({ node, onRemove }) {
+  const chipRef = useRef(null)
+  useGSAP(() => {
+    gsap.from(chipRef.current, { scale: 0.5, opacity: 0, duration: 0.28, ease: 'back.out(2.2)' })
+  }, { scope: chipRef })
+  const c = LC(node.level)
+  return (
+    <span ref={chipRef} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:12, border:`1px solid ${c.stroke}50`, background:`${c.fill}ee`, color:c.text, fontSize:12 }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:c.stroke, display:"inline-block", opacity:.7 }} />
+      {node.label}
+      <button onClick={onRemove}
+        style={{ background:"none", border:"none", color:"inherit", opacity:.55, cursor:"pointer", padding:0, fontSize:15, lineHeight:1, marginLeft:1 }}>×</button>
+    </span>
+  )
+}
+
+// ── _AssocBanner: assoc mode banner with slide-down entrance ──────
+
+function _AssocBanner({ assocNodes, lang, onStart, onClear, onRemoveNode }) {
+  const bannerRef = useRef(null)
+  const tl_l = LANG[lang].assoc
+  useGSAP(() => {
+    gsap.from(bannerRef.current, { y: -40, opacity: 0, duration: 0.3, ease: 'power2.out' })
+  }, { scope: bannerRef })
+  return (
+    <div ref={bannerRef} style={{ padding:"8px 16px", background:"rgba(139,92,246,0.05)", borderBottom:"1px solid rgba(139,92,246,0.15)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+        <span style={{ fontSize:12, color:"#8080a0", flex:1 }}>
+          {assocNodes.length < 2 ? tl_l.pickNode : tl_l.selectedLabel(assocNodes.length, 4)}
+        </span>
+        {assocNodes.length >= 2 && (
+          <button onClick={onStart}
+            style={{ padding:"5px 16px", borderRadius:8, border:"1px solid rgba(139,92,246,.55)", background:"rgba(139,92,246,.1)", color:"#c4b5fd", fontSize:12, cursor:"pointer", fontFamily:"inherit", transition:"all .15s", fontWeight:500 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor="rgba(139,92,246,.9)"; e.currentTarget.style.background="rgba(139,92,246,.18)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(139,92,246,.55)"; e.currentTarget.style.background="rgba(139,92,246,.1)"; }}>
+            {tl_l.analyzeBtn}
+          </button>
+        )}
+        {assocNodes.length > 0 && (
+          <button onClick={onClear}
+            style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #1e1e2e", background:"transparent", color:"#3a3a55", fontSize:11, cursor:"pointer", fontFamily:"inherit", transition:"border-color .15s" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor="#2a2a4a"}
+            onMouseLeave={e => e.currentTarget.style.borderColor="#1e1e2e"}>
+            {tl_l.clearSelection}
+          </button>
+        )}
+      </div>
+      {assocNodes.length > 0 && (
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+          {assocNodes.map(nd => (
+            <_AssocChip key={nd.id} node={nd} onRemove={() => onRemoveNode(nd.id)} />
+          ))}
+          {assocNodes.length < 4 && (
+            <span style={{ fontSize:11, color:"#1e1e30", fontStyle:"italic" }}>+{4 - assocNodes.length}</span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── _RightPanelEmpty: floating icon when no node selected ─────────
+
+function _RightPanelEmpty({ lang }) {
+  const iconRef = useRef(null)
+  const tl_l = LANG[lang]
+  useGSAP(() => {
+    gsap.to(iconRef.current, { y: -7, duration: 1.8, ease: 'sine.inOut', yoyo: true, repeat: -1 })
+  }, { scope: iconRef })
+
+  return (
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10, opacity:0.18, userSelect:"none", padding:24 }}>
+      <div ref={iconRef}>
+        <svg viewBox="0 0 24 24" width={36} height={36} fill="none" stroke="#aaa" strokeWidth="1.3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </div>
+      <p style={{ fontSize:12, color:"#888", textAlign:"center", lineHeight:1.8, margin:0 }}>
+        {tl_l.nodeHint[0]}<br />{tl_l.nodeHint[1]}<br />{tl_l.nodeHint[2]}
+      </p>
+    </div>
+  )
+}
+
+// ── _SettingsModal: preferences modal with GSAP entrance ──────────
+
+function _SettingsModal({ lang, draftPrefs, setDraftPrefs, prefsSaved, onSave, onClose }) {
+  const modalRef = useRef(null)
+  const tl_l = LANG[lang]
+  useGSAP(() => {
+    gsap.from(modalRef.current, { scale: 0.9, opacity: 0, y: 12, duration: 0.32, ease: 'back.out(1.7)' })
+  }, { scope: modalRef })
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", zIndex:1100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div ref={modalRef} style={{ background:"#0c0c1a", border:"1px solid #1e1e2e", borderRadius:16, padding:"28px 30px", width:440, maxWidth:"92vw", boxShadow:"0 32px 80px rgba(0,0,0,0.8)" }}>
+        <div style={{ fontSize:15, fontWeight:600, color:"#d0d0e8", marginBottom:22 }}>{tl_l.settings.title}</div>
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11, color:"#4a4a6a", letterSpacing:".06em", textTransform:"uppercase", marginBottom:10 }}>{tl_l.settings.style}</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+            {Object.entries(tl_l.settings.styleOpts).map(([k, v]) => (
+              <button key={k} onClick={() => setDraftPrefs(p => ({ ...p, style: k }))}
+                style={{ padding:"10px 14px", borderRadius:9, border:`1px solid ${draftPrefs.style === k ? "rgba(245,158,11,.6)" : "rgba(255,255,255,0.07)"}`, background:draftPrefs.style === k ? "#1c0e00" : "#080810", color:draftPrefs.style === k ? "#fcd34d" : "#6a6a8a", fontSize:13, cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"all .15s" }}>
+                <div style={{ fontWeight:500, marginBottom:2 }}>{v}</div>
+                <div style={{ fontSize:10, opacity:0.55 }}>{tl_l.settings.styleDescs[k]}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11, color:"#4a4a6a", letterSpacing:".06em", textTransform:"uppercase", marginBottom:8 }}>{tl_l.settings.background}</div>
+          <input value={draftPrefs.background} onChange={e => setDraftPrefs(p => ({ ...p, background: e.target.value }))} maxLength={200}
+            placeholder={tl_l.settings.bgPh}
+            style={{ width:"100%", padding:"9px 13px", background:"#080810", border:"1px solid rgba(255,255,255,0.08)", borderRadius:9, color:"#d0d0e8", fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box", transition:"border-color .2s" }}
+            onFocus={e => e.target.style.borderColor = "rgba(255,255,255,0.22)"}
+            onBlur={e  => e.target.style.borderColor = "rgba(255,255,255,0.08)"} />
+        </div>
+        <div style={{ marginBottom:26 }}>
+          <div style={{ fontSize:11, color:"#4a4a6a", letterSpacing:".06em", textTransform:"uppercase", marginBottom:8 }}>{tl_l.settings.llmLang}</div>
+          <div style={{ display:"flex", gap:8 }}>
+            {Object.entries(tl_l.settings.langOpts).map(([k, v]) => (
+              <button key={k} onClick={() => setDraftPrefs(p => ({ ...p, llmLang: k }))}
+                style={{ padding:"7px 16px", borderRadius:8, border:`1px solid ${draftPrefs.llmLang === k ? "rgba(139,92,246,.6)" : "rgba(255,255,255,0.07)"}`, background:draftPrefs.llmLang === k ? "#100020" : "#080810", color:draftPrefs.llmLang === k ? "#c4b5fd" : "#6a6a8a", fontSize:12, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+          <button onClick={onClose}
+            style={{ padding:"8px 18px", borderRadius:8, border:"1px solid #1e1e2e", background:"transparent", color:"#4a4a6a", fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a4a"} onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e2e"}>
+            {tl_l.settings.cancel}
+          </button>
+          <button onClick={onSave}
+            style={{ padding:"8px 22px", borderRadius:8, border:`1px solid ${prefsSaved ? "rgba(16,185,129,.5)" : "rgba(245,158,11,.5)"}`, background:prefsSaved ? "#001a10" : "#1c0e00", color:prefsSaved ? "#6ee7b7" : "#fcd34d", fontSize:13, fontWeight:500, cursor:"pointer", fontFamily:"inherit", transition:"all .25s" }}>
+            {prefsSaved ? tl_l.settings.saved : tl_l.settings.save}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasComponent }) {
+  const wrapRef      = useRef(null)
+  const topbarRef    = useRef(null)
+  const searchbarRef = useRef(null)
+  const sidePanelRef = useRef(null)
+
+  const isMobileRef = useRef(typeof window !== 'undefined' && window.innerWidth < 768)
+
+  useGSAP(() => {
+    const tl = gsap.timeline({ defaults: { ease: 'power2.out' } })
+    tl.from(topbarRef.current,    { y: -32, opacity: 0, duration: 0.48 })
+      .from(searchbarRef.current, { y: -14, opacity: 0, duration: 0.38 }, '-=0.24')
+    if (sidePanelRef.current) {
+      tl.from(sidePanelRef.current,
+        isMobileRef.current ? { y: 100, opacity: 0, duration: 0.45 }
+                            : { x: 30,  opacity: 0, duration: 0.45 },
+        '-=0.28')
+    }
+  }, { scope: wrapRef })
+
   const [query, setQuery]       = useState("");
-  const [depth, setDepth]           = useState(2);
+  const [depth, setDepth]           = useState(1);
   const [soundOn, setSoundOn]       = useState(true);
   const [username, setUsername]     = useState("");
+  const [maxTrees, setMaxTrees]     = useState(4);
   const [lang, setLang]             = useState(() => {
     try { return localStorage.getItem("kt-lang") || "zh"; } catch { return "zh"; }
   });
@@ -1284,15 +1727,20 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
   const [showSettings, setShowSettings] = useState(false);
   const [prefsSaved, setPrefsSaved] = useState(false);
   const logRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
 
-  // ── 关联模式状态 ──────────────────────────────────────────────────
-  const [assocMode, setAssocMode]         = useState(false);
-  const [assocNodeA, setAssocNodeA]       = useState(null);
-  const [assocNodeB, setAssocNodeB]       = useState(null);
-  const [assocResult, setAssocResult]     = useState(null);
-  const [assocBusy, setAssocBusy]         = useState(false);
-  const [autoAssocBusy, setAutoAssocBusy] = useState(false);
-  const [autoAssocResults, setAutoAssocResults] = useState(null); // null = not run yet
+  // ── 关联模式状态（新版：多节点，最多4个）────────────────────────
+  const [assocMode, setAssocMode]           = useState(false);
+  const [assocNodes, setAssocNodes]         = useState([]);      // 已选节点数组，最多4个
+  const [assocAnalyzing, setAssocAnalyzing] = useState(false);   // 分析进行中
+  const assocAbortRef                       = useRef(false);     // 取消标志
+  const [assocResult, setAssocResult]       = useState(null);    // {pairs, commonThemes, summary}
+  const [showAssocResult, setShowAssocResult] = useState(false); // 结果弹窗
+  const [extractData, setExtractData]       = useState(null);    // {tree, concept} 待提取
+  const [showExtractModal, setShowExtractModal] = useState(false);
+  const [autoAssocBusy, setAutoAssocBusy]   = useState(false);
+  const [autoAssocResults, setAutoAssocResults] = useState(null);
 
   const toggleLang = () => {
     const next = lang === "zh" ? "en" : "zh";
@@ -1307,15 +1755,18 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
     roots, crossEdges, crossBusy, anyBusy,
     selectedNode, setSelectedNode,
     selectedRootId, setSelectedRootId,
-    addRoot, removeRoot, clearAll, cancelSearch, expand, findCrossRelations,
+    addRoot, addPrebuiltRoot, clearAndAdd, removeRoot, clearAll, cancelSearch, expand, findCrossRelations,
     maxRootsReached,
-  } = useMultiRoots(cfg, lang);
+  } = useMultiRoots(cfg, lang, maxTrees);
 
-  // 获取当前用户名 & 偏好设置
+  // 获取当前用户名、偏好设置 & 系统配置
   useEffect(() => {
     fetch("/api/me").then(r => r.json()).then(d => {
       setUsername(d.username || "");
       if (d.preferences) { setPrefs(d.preferences); setDraftPrefs(d.preferences); }
+    }).catch(() => {});
+    fetch("/api/config").then(r => r.json()).then(d => {
+      if (d.maxTrees) setMaxTrees(d.maxTrees);
     }).catch(() => {});
   }, []);
 
@@ -1369,8 +1820,22 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
   const activeLog = selectedRoot?.log || [];
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = 9999; }, [activeLog]);
 
+  useEffect(() => {
+    const handler = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      isMobileRef.current = mobile;
+    };
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile && selectedNode) setBottomSheetOpen(true);
+  }, [selectedNode, isMobile]);
+
   const doAddRoot = () => {
-    if (!query.trim() || anyBusy || maxRootsReached) return;
+    if (!query.trim() || anyBusy || roots.length >= maxTrees) return;
     SoundSystem.setEnabled(soundOn);
     if (soundOn && !SoundSystem._ambientNodes) SoundSystem.startAmbient();
     addRoot(query);
@@ -1399,44 +1864,126 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
     expand(nodeId, selectedRoot.id);
   };
 
-  // ── 关联模式逻辑 ──────────────────────────────────────────────────
+  // ── 关联模式逻辑（新版）────────────────────────────────────────
   const toggleAssocMode = () => {
     setAssocMode(v => !v);
-    setAssocNodeA(null);
-    setAssocNodeB(null);
+    setAssocNodes([]);
     setAssocResult(null);
+    setShowAssocResult(false);
     setAutoAssocResults(null);
   };
 
-  const queryPairRelation = async (a, b) => {
-    setAssocBusy(true);
+  // 点击节点：切换是否加入关联选择（最多 4 个）
+  const handleAssocNodeClick = (node) => {
+    if (!assocMode || node.status !== "done" || assocAnalyzing) return;
+    setAssocNodes(prev => {
+      const exists = prev.find(n => n.id === node.id);
+      if (exists) return prev.filter(n => n.id !== node.id);
+      if (prev.length >= 4) return prev;
+      return [...prev, node];
+    });
+  };
+
+  // 启动关联分析
+  const startAssocAnalysis = async () => {
+    if (assocNodes.length < 2 || assocAnalyzing) return;
+    assocAbortRef.current = false;
+    setAssocAnalyzing(true);
     setAssocResult(null);
+    setShowAssocResult(false);
     try {
-      const res = await fetch("/api/node-relation", {
+      const res = await fetch("/api/association", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ labelA: a.label, labelB: b.label }),
+        body: JSON.stringify({ nodes: assocNodes.map(n => n.label) }),
       });
+      if (assocAbortRef.current) return;
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setAssocResult(data);
+      setShowAssocResult(true);
     } catch (err) {
-      console.error("关联查询失败:", err.message);
+      console.error("关联分析失败:", err.message);
     }
-    setAssocBusy(false);
+    setAssocAnalyzing(false);
   };
 
-  // Node click in assoc mode: set A then B, then auto-query
-  const handleAssocNodeClick = (node) => {
-    if (!assocMode || node.status !== "done") return;
-    if (!assocNodeA) {
-      setAssocNodeA(node);
-      setAssocNodeB(null);
-      setAssocResult(null);
-    } else if (node.id !== assocNodeA.id) {
-      setAssocNodeB(node);
-      queryPairRelation(assocNodeA, node);
+  // 取消分析
+  const cancelAssocAnalysis = () => {
+    assocAbortRef.current = true;
+    setAssocAnalyzing(false);
+  };
+
+  // 构建关联提取树（以 commonThemes 作 L1，回退到 pairs）
+  const _buildAssocTree = () => {
+    const rootLabel = assocNodes.length === 2
+      ? `${assocNodes[0].label} & ${assocNodes[1].label}`
+      : assocNodes.map(n => n.label).join(" & ");
+    const root = mkNode(rootLabel, 0);
+    root.explanation = assocResult?.summary || "";
+    root.status = "done";
+    const themes = assocResult?.commonThemes ?? [];
+    const pairs  = (assocResult?.pairs ?? []).filter(p => p.strength >= 5);
+    root.hasStrongRelations = themes.length > 0 || pairs.length > 0;
+    if (themes.length > 0) {
+      themes.forEach(theme => {
+        const child = mkNode(theme.theme, 1);
+        child.explanation = theme.description || "";
+        child.status = "done";
+        child.hasStrongRelations = false;
+        child._parentLabel = rootLabel;
+        root.children.push(child);
+      });
+    } else {
+      pairs.forEach(pair => {
+        const child = mkNode(`${pair.from} ↔ ${pair.to}`, 1);
+        child.explanation = pair.reason || "";
+        child.status = "done";
+        child.hasStrongRelations = false;
+        child._parentLabel = rootLabel;
+        root.children.push(child);
+      });
     }
+    return root;
+  };
+
+  // 提取为新树入口
+  const handleExtractToTree = () => {
+    if (!assocResult) return;
+    setShowAssocResult(false);
+    const tree    = _buildAssocTree();
+    const concept = assocNodes.map(n => n.label).join(" & ");
+    if (roots.length >= maxTrees) {
+      setExtractData({ tree, concept });
+      setShowExtractModal(true);
+    } else {
+      addPrebuiltRoot(tree, concept);
+      setAssocMode(false);
+      setAssocNodes([]);
+      setAssocResult(null);
+    }
+  };
+
+  const _finishExtract = () => {
+    setShowExtractModal(false);
+    setAssocMode(false);
+    setAssocNodes([]);
+    setAssocResult(null);
+    setExtractData(null);
+  };
+
+  const confirmClearAndExtract = () => {
+    if (!extractData) return;
+    clearAndAdd(extractData.tree, extractData.concept);
+    _finishExtract();
+  };
+
+  const confirmPickAndExtract = (rootIdToRemove) => {
+    if (!extractData) return;
+    removeRoot(rootIdToRemove);
+    // Add after the remove renders
+    setTimeout(() => addPrebuiltRoot(extractData.tree, extractData.concept), 30);
+    _finishExtract();
   };
 
   // Auto-find: given selected node, rank all other done nodes
@@ -1463,14 +2010,12 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
     setAutoAssocBusy(false);
   };
 
-  // "查看节点对": enter assoc mode with A pre-set, then open modal with B from auto result
+  // "查看节点对": quick-enter assoc mode and pre-select two nodes
   const handleViewPair = (pivotNode, labelB) => {
     const nodeB = allNodes.find(n => n.label === labelB && n.status === "done");
     if (!nodeB) return;
     setAssocMode(true);
-    setAssocNodeA(pivotNode);
-    setAssocNodeB(nodeB);
-    queryPairRelation(pivotNode, nodeB);
+    setAssocNodes([pivotNode, nodeB]);
   };
 
   // 计算所有节点（含偏移量）供多树画布使用
@@ -1487,18 +2032,18 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
   return (
     <>
       <style>{_CSS}</style>
-      <div style={{ display:"flex", flexDirection:"column", height:"100vh", overflow:"hidden", background:"#07070d", fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif", color:"#b0b0cc" }}>
+      <div ref={wrapRef} style={{ display:"flex", flexDirection:"column", height:"100vh", overflow:"hidden", background:"#07070d", fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif", color:"#b0b0cc" }}>
 
         {/* ── 顶栏 ─────────────────────────────── */}
-        <div style={{ padding:"8px 20px", background:"rgba(10,10,18,0.95)", borderBottom:"1px solid #12121e", display:"flex", alignItems:"center", gap:12, flexShrink:0, backdropFilter:"blur(12px)" }}>
+        <div ref={topbarRef} className="kt3-topbar" style={{ padding:"8px 20px", background:"rgba(10,10,18,0.95)", borderBottom:"1px solid #12121e", display:"flex", alignItems:"center", gap:12, flexShrink:0, backdropFilter:"blur(12px)" }}>
           <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="#f59e0b" strokeWidth="1.6">
             <circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="2.5"/><circle cx="12" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/>
             <line x1="12" y1="8" x2="5" y2="16.5"/><line x1="12" y1="8" x2="12" y2="16.5"/><line x1="12" y1="8" x2="19" y2="16.5"/>
           </svg>
           <span style={{ fontSize:14, fontWeight:500, color:"#d0d0e8" }}>{tl.appName}</span>
-          <span style={{ fontSize:11, color:"#282838" }}>{tl.tagline}</span>
+          <span className="kt3-topbar-tagline" style={{ fontSize:11, color:"#282838" }}>{tl.tagline}</span>
 
-          <div style={{ marginLeft:"auto", display:"flex", gap:10, alignItems:"center" }}>
+          <div className="kt3-topbar-right" style={{ marginLeft:"auto", display:"flex", gap:10, alignItems:"center" }}>
             {/* 语言切换 / Language toggle */}
             <button onClick={toggleLang} title={lang === "zh" ? "Switch to English" : "切换中文"} style={{ padding:"4px 10px", borderRadius:6, fontSize:12, cursor:"pointer", border:"1px solid #2a2a3e", background:"transparent", color:"#6060a0", fontFamily:"inherit", transition:"all .15s", letterSpacing:".04em" }}
               onMouseEnter={e=>{ e.currentTarget.style.borderColor="#4a4a6e"; e.currentTarget.style.color="#9090c8"; }} onMouseLeave={e=>{ e.currentTarget.style.borderColor="#2a2a3e"; e.currentTarget.style.color="#6060a0"; }}>
@@ -1516,7 +2061,7 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
             {/* 用户信息 */}
             {username && (
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:11, color:"#2a2838", padding:"3px 10px", borderRadius:6, border:"1px solid #1a1a2e", background:"transparent" }}>@{username}</span>
+                {!isMobile && <span style={{ fontSize:11, color:"#2a2838", padding:"3px 10px", borderRadius:6, border:"1px solid #1a1a2e", background:"transparent" }}>@{username}</span>}
                 {username === "admin" && <a href="/admin" style={{ fontSize:11, color:"#8b5cf6", textDecoration:"none", padding:"3px 10px", border:"1px solid rgba(139,92,246,.25)", borderRadius:6, transition:"all .15s" }} onMouseEnter={e=>e.target.style.borderColor="rgba(139,92,246,.6)"} onMouseLeave={e=>e.target.style.borderColor="rgba(139,92,246,.25)"}>{tl.admin}</a>}
                 <form method="POST" action="/logout" style={{ display:"inline" }}>
                   <button type="submit" style={{ fontSize:11, color:"#3a3a55", padding:"3px 10px", border:"1px solid #1a1a2e", borderRadius:6, background:"transparent", cursor:"pointer", fontFamily:"inherit" }}>{tl.logout}</button>
@@ -1527,47 +2072,47 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
         </div>
 
         {/* ── 搜索栏 ───────────────────────────── */}
-        <div style={{ padding:"8px 20px", background:"rgba(9,9,15,0.9)", borderBottom:"1px solid #10101a", display:"flex", gap:10, alignItems:"center", flexShrink:0 }}>
-          <input className="kt3-input" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!anyBusy&&doAddRoot()} disabled={maxRootsReached} placeholder={maxRootsReached ? tl.input.maxReached : anyBusy ? tl.input.busy : tl.input.default} />
+        <div ref={searchbarRef} className="kt3-searchbar" style={{ padding:"8px 20px", background:"rgba(9,9,15,0.9)", borderBottom:"1px solid #10101a", display:"flex", gap:10, alignItems:"center", flexShrink:0 }}>
+          <input className="kt3-input" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!anyBusy&&doAddRoot()} disabled={roots.length>=maxTrees} placeholder={roots.length>=maxTrees ? tl.input.maxReached : anyBusy ? tl.input.busy : tl.input.default} />
 
-          {/* 深度 / Depth */}
-          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+          <div className="kt3-searchbar-row2" style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            {/* 深度 / Depth — 仅 L1 */}
             <span style={{ fontSize:11, color:"#282838", marginRight:2 }}>{tl.depth}</span>
-            {[2,3,4].map(d => <button key={d} className={`kt3-depth${depth===d?" on":""}`} onClick={()=>setDepth(d)} disabled={anyBusy}>L{d}</button>)}
+            {[1].map(d => <button key={d} className={`kt3-depth${depth===d?" on":""}`} onClick={()=>setDepth(d)} disabled={anyBusy}>L{d}</button>)}
+
+            {/* 添加根 / 中断按钮 */}
+            {anyBusy ? (
+              <button className="kt3-btn" onClick={doCancel} style={{ borderColor:"rgba(251,113,133,.5)", color:"#fda4af", background:"rgba(251,113,133,.06)", animation:"kt3-pulse 1.4s infinite" }}>
+                {tl.cancelBtn}
+              </button>
+            ) : (
+              <button className="kt3-btn kt3-btn-primary" onClick={doAddRoot} disabled={!query.trim()||roots.length>=maxTrees}>
+                <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth="2"><path d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .962L15.5 14.063a2 2 0 00-1.437 1.437l-1.582 6.135a.5.5 0 01-.963 0z"/></svg>
+                {tl.addRoot}{roots.length > 0 ? ` (${roots.length}/${maxTrees})` : ""}
+              </button>
+            )}
+
+            {/* 跨树关联 / Cross-tree relations */}
+            {roots.length >= 2 && (
+              <button className="kt3-cross-btn" onClick={doCrossRelations} disabled={anyBusy||crossBusy||roots.some(r=>r.busy)}>
+                {crossBusy ? tl.analyzing : `${tl.analyzeRelations}${crossEdges.length>0?` (${crossEdges.length})`:""}`}
+              </button>
+            )}
+
+            {/* 关联模式 / Association mode */}
+            {roots.length > 0 && (
+              <button className={`kt3-assoc-btn${assocMode?" active":""}`} onClick={toggleAssocMode} disabled={anyBusy}>
+                {assocMode ? tl.assoc.btnActive : tl.assoc.btn}
+              </button>
+            )}
+
+            {/* 清空 / Clear */}
+            {roots.length > 0 && (
+              <button className="kt3-btn kt3-btn-danger" onClick={doClearAll} disabled={anyBusy}>
+                {tl.clear}
+              </button>
+            )}
           </div>
-
-          {/* 添加根 / 中断按钮 */}
-          {anyBusy ? (
-            <button className="kt3-btn" onClick={doCancel} style={{ borderColor:"rgba(251,113,133,.5)", color:"#fda4af", background:"rgba(251,113,133,.06)", animation:"kt3-pulse 1.4s infinite" }}>
-              {tl.cancelBtn}
-            </button>
-          ) : (
-            <button className="kt3-btn kt3-btn-primary" onClick={doAddRoot} disabled={!query.trim()||maxRootsReached}>
-              <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth="2"><path d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .962L15.5 14.063a2 2 0 00-1.437 1.437l-1.582 6.135a.5.5 0 01-.963 0z"/></svg>
-              {tl.addRoot}{roots.length > 0 ? ` (${roots.length}/${MAX_ROOTS})` : ""}
-            </button>
-          )}
-
-          {/* 跨树关联 / Cross-tree relations */}
-          {roots.length >= 2 && (
-            <button className="kt3-cross-btn" onClick={doCrossRelations} disabled={anyBusy||crossBusy||roots.some(r=>r.busy)}>
-              {crossBusy ? tl.analyzing : `${tl.analyzeRelations}${crossEdges.length>0?` (${crossEdges.length})`:""}`}
-            </button>
-          )}
-
-          {/* 关联模式 / Association mode */}
-          {roots.length > 0 && (
-            <button className={`kt3-assoc-btn${assocMode?" active":""}`} onClick={toggleAssocMode} disabled={anyBusy}>
-              {assocMode ? tl.assoc.btnActive : tl.assoc.btn}
-            </button>
-          )}
-
-          {/* 清空 / Clear */}
-          {roots.length > 0 && (
-            <button className="kt3-btn kt3-btn-danger" onClick={doClearAll} disabled={anyBusy}>
-              {tl.clear}
-            </button>
-          )}
         </div>
 
         {/* ── 树标签栏 ─────────────────────────── */}
@@ -1575,14 +2120,13 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
           <div style={{ padding:"4px 16px", background:"rgba(8,8,14,0.8)", borderBottom:"1px solid #0e0e18", display:"flex", gap:4, alignItems:"center", flexShrink:0, overflowX:"auto" }}>
             <span style={{ fontSize:10, color:"#1e1e30", marginRight:4, whiteSpace:"nowrap" }}>{tl.treesLabel}</span>
             {roots.map(r => (
-              <div key={r.id} style={{ display:"flex", alignItems:"center" }}>
-                <button className={`kt3-root-tab${selectedRootId===r.id?" active":""}`} onClick={()=>setSelectedRootId(r.id)}>
-                  <span className="kt3-root-dot" style={{ background:r.color, boxShadow:r.busy?`0 0 6px ${r.color}`:undefined, animation:r.busy?"kt3-pulse 1s infinite":undefined }} />
-                  <span>{r.concept}</span>
-                  {r.busy && <span style={{ fontSize:10, color:r.color, opacity:.7 }}>…</span>}
-                </button>
-                <button onClick={()=>{ SoundSystem.play("clear"); removeRoot(r.id); }} title="移除此树" style={{ width:16, height:16, borderRadius:"50%", background:"transparent", border:"none", color:"#2a2a40", cursor:"pointer", fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", marginLeft:-2, transition:"color .15s" }} onMouseEnter={e=>e.currentTarget.style.color="#f87171"} onMouseLeave={e=>e.currentTarget.style.color="#2a2a40"}>×</button>
-              </div>
+              <_RootTab
+                key={r.id}
+                root={r}
+                active={selectedRootId === r.id}
+                onSelect={setSelectedRootId}
+                onRemove={id => { SoundSystem.play("clear"); removeRoot(id) }}
+              />
             ))}
             {crossEdges.length > 0 && (
               <span style={{ marginLeft:8, fontSize:11, color:"#8b5cf6", opacity:.7 }}>
@@ -1592,25 +2136,15 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
           </div>
         )}
 
-        {/* ── 关联模式横幅 ─────────────────────── */}
-        {assocMode && (
-          <div className="kt3-assoc-banner">
-            <span style={{ opacity:.7 }}>
-              {!assocNodeA
-                ? tl.assoc.pickA
-                : !assocNodeB
-                  ? <><strong style={{ color:"#fda4af" }}>{assocNodeA.label}</strong>&nbsp;→ {tl.assoc.pickB}</>
-                  : assocBusy
-                    ? tl.assoc.querying
-                    : <><strong style={{ color:"#fda4af" }}>{assocNodeA.label}</strong>&nbsp;⟷&nbsp;<strong style={{ color:"#fda4af" }}>{assocNodeB.label}</strong></>
-              }
-            </span>
-            {assocNodeA && (
-              <button onClick={() => { setAssocNodeA(null); setAssocNodeB(null); setAssocResult(null); }} style={{ marginLeft:"auto", fontSize:11, color:"#3a3a55", background:"none", border:"none", cursor:"pointer", fontFamily:"inherit" }}>
-                重置
-              </button>
-            )}
-          </div>
+        {/* ── 关联模式横幅（新版）─────────────── */}
+        {assocMode && !assocAnalyzing && (
+          <_AssocBanner
+            assocNodes={assocNodes}
+            lang={lang}
+            onStart={startAssocAnalysis}
+            onClear={() => setAssocNodes([])}
+            onRemoveNode={id => setAssocNodes(prev => prev.filter(n => n.id !== id))}
+          />
         )}
 
         {/* ── 主区域 ───────────────────────────── */}
@@ -1619,9 +2153,9 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
           {(() => {
             const CanvasEl = CanvasComponent || KnowledgeTreeView;
             const activeRoot = roots.find(r => r.id === selectedRootId) || roots[roots.length - 1];
-            // 3D 画布传入所有树的 nodes/edges + cross edges
+            const assocIds = new Set(assocNodes.map(n => n.id));
+
             if (CanvasComponent) {
-              const assocIds = new Set([assocNodeA?.id, assocNodeB?.id].filter(Boolean));
               return (
                 <CanvasEl
                   nodes={multiNodes}
@@ -1631,6 +2165,7 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
                   selectedNode={selectedNode}
                   assocNodeIds={assocIds}
                   assocMode={assocMode}
+                  lang={lang}
                   onNodeSelect={n => {
                     SoundSystem.play("click");
                     if (assocMode) { handleAssocNodeClick(n); return; }
@@ -1644,12 +2179,12 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
                 />
               );
             }
-            // SVG 画布只渲染当前选中树
             return activeRoot ? (
               <KnowledgeTreeView
                 nodes={activeRoot.nodes}
                 edges={activeRoot.edges}
                 selectedNode={selectedNode}
+                assocNodeIds={assocIds}
                 onNodeSelect={n => {
                   SoundSystem.play("click");
                   const nn = { ...n, _rootId: activeRoot.id };
@@ -1668,113 +2203,115 @@ export default function KnowledgeTreeWidget({ apiKey, agentConfig = {}, CanvasCo
             );
           })()}
 
-          {/* 右侧面板 */}
-          <div style={{ width:300, flexShrink:0, borderLeft:"1px solid #10101a", background:"#09090f", display:"flex", flexDirection:"column" }}>
-            <div style={{ flex:1, overflowY:"auto" }}>
-              {selectedNode ? (
-                <_NodeDetail
-                  node={selectedNode}
-                  allNodes={allNodes}
-                  onSelect={n => { setSelectedNode(n); SoundSystem.play("click"); setAutoAssocResults(null); }}
-                  themeColor={roots.find(r => r.id === selectedNode._rootId)?.color}
-                  lang={lang}
-                  onAutoRelation={handleAutoRelation}
-                  autoRelationBusy={autoAssocBusy}
-                  autoRelationResults={autoAssocResults}
-                  onViewPair={handleViewPair}
-                />
-              ) : (
-                <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10, opacity:0.18, userSelect:"none", padding:24 }}>
-                  <svg viewBox="0 0 24 24" width={36} height={36} fill="none" stroke="#aaa" strokeWidth="1.3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                  <p style={{ fontSize:12, color:"#888", textAlign:"center", lineHeight:1.8, margin:0 }}>
-                    {tl.nodeHint[0]}<br />{tl.nodeHint[1]}<br />{tl.nodeHint[2]}
-                  </p>
-                </div>
-              )}
-            </div>
+          {/* 右侧面板 — 仅桌面 */}
+          {!isMobile && (
+            <div ref={sidePanelRef} style={{ width:300, flexShrink:0, borderLeft:"1px solid #10101a", background:"#09090f", display:"flex", flexDirection:"column" }}>
+              <div style={{ flex:1, overflowY:"auto" }}>
+                {selectedNode ? (
+                  <_NodeDetail
+                    node={selectedNode}
+                    allNodes={allNodes}
+                    onSelect={n => { setSelectedNode(n); SoundSystem.play("click"); setAutoAssocResults(null); }}
+                    themeColor={roots.find(r => r.id === selectedNode._rootId)?.color}
+                    lang={lang}
+                    onAutoRelation={handleAutoRelation}
+                    autoRelationBusy={autoAssocBusy}
+                    autoRelationResults={autoAssocResults}
+                    onViewPair={handleViewPair}
+                  />
+                ) : (
+                  <_RightPanelEmpty lang={lang} />
+                )}
+              </div>
 
-            {/* 日志 */}
-            <div ref={logRef} style={{ height:128, flexShrink:0, overflowY:"auto", borderTop:"1px solid #10101a", padding:"8px 12px", background:"#07070c" }}>
-              {activeLog.length === 0 ? (
-                <p style={{ fontSize:11, color:"#1a1a28", margin:0, fontStyle:"italic" }}>{tl.logEmpty}</p>
-              ) : activeLog.map((m, i) => (
-                <p key={i} className="kt3-log-line" style={{ fontSize:11, color:"#303050", margin:"0 0 2px", lineHeight:1.6, fontFamily:"'SF Mono','Fira Code',monospace" }}>{m}</p>
-              ))}
+              {/* 日志 */}
+              <div ref={logRef} style={{ height:128, flexShrink:0, overflowY:"auto", borderTop:"1px solid #10101a", padding:"8px 12px", background:"#07070c" }}>
+                {activeLog.length === 0 ? (
+                  <p style={{ fontSize:11, color:"#1a1a28", margin:0, fontStyle:"italic" }}>{tl.logEmpty}</p>
+                ) : activeLog.map((m, i) => (
+                  <_LogLine key={i} text={m} />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* ── 关联分析弹窗 ─────────────────────── */}
-      {assocMode && assocNodeA && (
-        <_RelationModal
-          nodeA={assocNodeA}
-          nodeB={assocNodeB}
+      {/* ── 移动端底部抽屉 ───────────────────── */}
+      {isMobile && bottomSheetOpen && (
+        <div
+          onClick={() => setBottomSheetOpen(false)}
+          style={{ position:"fixed", inset:0, zIndex:499, background:"rgba(0,0,0,0.45)" }}
+        />
+      )}
+      {isMobile && (
+        <div ref={sidePanelRef} className={`kt3-bottom-sheet${bottomSheetOpen ? " open" : ""}`}>
+          <div className="kt3-bottom-sheet-handle" onClick={() => setBottomSheetOpen(false)} />
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"4px 16px 0", flexShrink:0 }}>
+            <span style={{ fontSize:12, color:"#4a4a6a" }}>{selectedNode?.label ?? ""}</span>
+            <button
+              onClick={() => { setBottomSheetOpen(false); setSelectedNode(null); }}
+              style={{ background:"none", border:"none", color:"#3a3a55", fontSize:22, cursor:"pointer", lineHeight:1, padding:"0 4px" }}
+            >×</button>
+          </div>
+          <div className="kt3-bottom-sheet-body">
+            {selectedNode ? (
+              <_NodeDetail
+                node={selectedNode}
+                allNodes={allNodes}
+                onSelect={n => { setSelectedNode(n); SoundSystem.play("click"); setAutoAssocResults(null); }}
+                themeColor={roots.find(r => r.id === selectedNode._rootId)?.color}
+                lang={lang}
+                onAutoRelation={handleAutoRelation}
+                autoRelationBusy={autoAssocBusy}
+                autoRelationResults={autoAssocResults}
+                onViewPair={handleViewPair}
+              />
+            ) : (
+              <_RightPanelEmpty lang={lang} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 关联分析动画覆盖 ─────────────────── */}
+      {assocAnalyzing && (
+        <_AssocAnimation nodes={assocNodes} lang={lang} onCancel={cancelAssocAnalysis} />
+      )}
+
+      {/* ── 关联分析结果弹窗 ─────────────────── */}
+      {showAssocResult && assocResult && (
+        <_AssocResultModal
+          nodes={assocNodes}
           result={assocResult}
-          busy={assocBusy}
           lang={lang}
-          onClose={() => { setAssocNodeA(null); setAssocNodeB(null); setAssocResult(null); setAssocMode(false); }}
+          onClose={() => setShowAssocResult(false)}
+          onExtract={handleExtractToTree}
+        />
+      )}
+
+      {/* ── 提取树：数量管理弹窗 ─────────────── */}
+      {showExtractModal && (
+        <_ExtractModal
+          roots={roots}
+          maxTrees={maxTrees}
+          lang={lang}
+          onPickAndExtract={confirmPickAndExtract}
+          onClearAndExtract={confirmClearAndExtract}
+          onCancel={() => setShowExtractModal(false)}
         />
       )}
 
       {/* ── 偏好设置弹窗 ─────────────────────── */}
       {showSettings && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", zIndex:1100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}
-          onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}>
-          <div style={{ background:"#0c0c1a", border:"1px solid #1e1e2e", borderRadius:16, padding:"28px 30px", width:440, maxWidth:"92vw", boxShadow:"0 32px 80px rgba(0,0,0,0.8)", animation:"kt3-fadeUp .2s ease" }}>
-            <div style={{ fontSize:15, fontWeight:600, color:"#d0d0e8", marginBottom:22 }}>{tl.settings.title}</div>
-
-            {/* 叙事风格 */}
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:11, color:"#4a4a6a", letterSpacing:".06em", textTransform:"uppercase", marginBottom:10 }}>{tl.settings.style}</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                {Object.entries(tl.settings.styleOpts).map(([k, v]) => (
-                  <button key={k} onClick={() => setDraftPrefs(p => ({ ...p, style: k }))}
-                    style={{ padding:"10px 14px", borderRadius:9, border:`1px solid ${draftPrefs.style === k ? "rgba(245,158,11,.6)" : "rgba(255,255,255,0.07)"}`, background:draftPrefs.style === k ? "#1c0e00" : "#080810", color:draftPrefs.style === k ? "#fcd34d" : "#6a6a8a", fontSize:13, cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"all .15s" }}>
-                    <div style={{ fontWeight:500, marginBottom:2 }}>{v}</div>
-                    <div style={{ fontSize:10, opacity:0.55 }}>{tl.settings.styleDescs[k]}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 用户背景 */}
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:11, color:"#4a4a6a", letterSpacing:".06em", textTransform:"uppercase", marginBottom:8 }}>{tl.settings.background}</div>
-              <input value={draftPrefs.background} onChange={e => setDraftPrefs(p => ({ ...p, background: e.target.value }))} maxLength={200}
-                placeholder={tl.settings.bgPh}
-                style={{ width:"100%", padding:"9px 13px", background:"#080810", border:"1px solid rgba(255,255,255,0.08)", borderRadius:9, color:"#d0d0e8", fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box", transition:"border-color .2s" }}
-                onFocus={e => e.target.style.borderColor = "rgba(255,255,255,0.22)"}
-                onBlur={e  => e.target.style.borderColor = "rgba(255,255,255,0.08)"} />
-            </div>
-
-            {/* LLM 输出语言 */}
-            <div style={{ marginBottom:26 }}>
-              <div style={{ fontSize:11, color:"#4a4a6a", letterSpacing:".06em", textTransform:"uppercase", marginBottom:8 }}>{tl.settings.llmLang}</div>
-              <div style={{ display:"flex", gap:8 }}>
-                {Object.entries(tl.settings.langOpts).map(([k, v]) => (
-                  <button key={k} onClick={() => setDraftPrefs(p => ({ ...p, llmLang: k }))}
-                    style={{ padding:"7px 16px", borderRadius:8, border:`1px solid ${draftPrefs.llmLang === k ? "rgba(139,92,246,.6)" : "rgba(255,255,255,0.07)"}`, background:draftPrefs.llmLang === k ? "#100020" : "#080810", color:draftPrefs.llmLang === k ? "#c4b5fd" : "#6a6a8a", fontSize:12, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 操作按钮 */}
-            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-              <button onClick={() => { setDraftPrefs(prefs); setShowSettings(false); }}
-                style={{ padding:"8px 18px", borderRadius:8, border:"1px solid #1e1e2e", background:"transparent", color:"#4a4a6a", fontSize:13, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a4a"} onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e2e"}>
-                {tl.settings.cancel}
-              </button>
-              <button onClick={async () => { await savePrefs(); setShowSettings(false); }}
-                style={{ padding:"8px 22px", borderRadius:8, border:`1px solid ${prefsSaved ? "rgba(16,185,129,.5)" : "rgba(245,158,11,.5)"}`, background:prefsSaved ? "#001a10" : "#1c0e00", color:prefsSaved ? "#6ee7b7" : "#fcd34d", fontSize:13, fontWeight:500, cursor:"pointer", fontFamily:"inherit", transition:"all .25s" }}>
-                {prefsSaved ? tl.settings.saved : tl.settings.save}
-              </button>
-            </div>
-          </div>
-        </div>
+        <_SettingsModal
+          lang={lang}
+          draftPrefs={draftPrefs}
+          setDraftPrefs={setDraftPrefs}
+          prefsSaved={prefsSaved}
+          onClose={() => { setDraftPrefs(prefs); setShowSettings(false); }}
+          onSave={async () => { await savePrefs(); setShowSettings(false); }}
+        />
       )}
     </>
   );

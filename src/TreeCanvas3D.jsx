@@ -10,7 +10,7 @@ import { OrbitControls, Stars, Html, Line, Sparkles } from '@react-three/drei'
 import { EffectComposer, Bloom, ChromaticAberration } from '@react-three/postprocessing'
 import { useRef, useState, useMemo, useEffect, useCallback } from 'react'
 import * as THREE from 'three'
-import { LEVEL_COLORS } from '../../index.jsx'
+import { LEVEL_COLORS } from '../index.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -381,7 +381,8 @@ function CameraRig({ allPositions }) {
 
 // ── Main component ────────────────────────────────────────────────
 
-export function TreeCanvas3D({ nodes: _n, edges: _e, roots = [], crossEdges = [], selectedNode, assocNodeIds = new Set(), assocMode = false, onNodeSelect, onNodeExpand }) {
+export function TreeCanvas3D({ nodes: _n, edges: _e, roots = [], crossEdges = [], selectedNode, assocNodeIds = new Set(), assocMode = false, onNodeSelect, onNodeExpand, lang = "zh" }) {
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
   const [bursts, setBursts] = useState([]) // [{id, pos, color}]
 
   const handleClickBurst = useCallback((pos, color) => {
@@ -491,12 +492,14 @@ export function TreeCanvas3D({ nodes: _n, edges: _e, roots = [], crossEdges = []
 
       {allNodes.length > 0 && (
         <div style={{ position:'absolute', bottom:16, left:16, fontSize:11, color:'#2a2a4a', userSelect:'none', pointerEvents:'none' }}>
-          拖拽旋转 · 滚轮缩放 · 右键平移
+          {isTouchDevice
+            ? (lang === "en" ? "Drag to rotate · Pinch to zoom" : "单指旋转 · 双指缩放")
+            : (lang === "en" ? "Drag · Scroll to zoom · Right-click pan" : "拖拽旋转 · 滚轮缩放 · 右键平移")}
         </div>
       )}
       {allNodes.some(n => n.status==='done' && !n.children.length && n.hasStrongRelations !== false) && (
         <div style={{ position:'absolute', bottom:16, right:16, fontSize:11, color:'#2a2a4a', userSelect:'none', pointerEvents:'none' }}>
-          点击 + 深度探索
+          {lang === "en" ? "Tap + to explore" : "点击 + 深度探索"}
         </div>
       )}
       {crossEdges.length > 0 && (

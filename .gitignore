@@ -15,7 +15,7 @@ build/
 Thumbs.db
 
 # User data (contains hashed credentials)
-demo/users.json
+users.json
 
 # Logs
 *.log
