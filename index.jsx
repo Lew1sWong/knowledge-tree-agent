@@ -1004,11 +1004,6 @@ export function KnowledgeTreeView({ nodes = [], edges = [], selectedNode, onNode
         </defs>
         <rect width="100%" height="100%" fill="url(#kt3-bg)" style={{ cursor: "grab" }} />
         <rect width="100%" height="100%" fill="url(#kt3-dots)" style={{ cursor: "grab" }} />
-        {!nodes.length && (
-          <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central" fontSize="13" fill="#282836" fontFamily="-apple-system,sans-serif">
-            {LANG[lang].canvasEmpty}
-          </text>
-        )}
         <g ref={groupRef}>
           {edges.map(([a, b], i) => {
             const bc = LC(b.level);

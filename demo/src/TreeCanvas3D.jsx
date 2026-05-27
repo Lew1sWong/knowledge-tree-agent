@@ -180,11 +180,11 @@ function NodeMesh({ node, pos, selected, isAssocHighlight, assocMode, onSelect, 
           This ensures all elements move together so click area = visual position. */}
       <group ref={floatGroupRef}>
 
-        {/* Outer glow halo — skip for root to avoid visual clutter */}
-        {!isPend && node.level !== 0 && (
+        {/* Outer glow halo */}
+        {!isPend && (
           <mesh>
             <sphereGeometry args={[r * 3.6, 10, 10]} />
-            <meshBasicMaterial color={strokeColor} transparent opacity={0.025} side={THREE.BackSide} depthWrite={false} />
+            <meshBasicMaterial color={strokeColor} transparent opacity={node.level === 0 ? 0.045 : 0.025} side={THREE.BackSide} depthWrite={false} />
           </mesh>
         )}
 
@@ -378,24 +378,6 @@ function CameraRig({ allPositions }) {
   return null
 }
 
-// ── Nebula cloud ──────────────────────────────────────────────────
-
-function NebulaCloud({ position, color }) {
-  const ref = useRef()
-  useFrame(state => {
-    if (!ref.current) return
-    const t = state.clock.elapsedTime
-    ref.current.rotation.y += 0.0008
-    ref.current.rotation.z += 0.0005
-    ref.current.scale.setScalar(1 + 0.04 * Math.sin(t * 0.28))
-  })
-  return (
-    <mesh ref={ref} position={position}>
-      <sphereGeometry args={[2.2, 8, 8]} />
-      <meshBasicMaterial color={color} transparent opacity={0.016} side={THREE.BackSide} depthWrite={false} />
-    </mesh>
-  )
-}
 
 // ── Main component ────────────────────────────────────────────────
 
@@ -445,18 +427,8 @@ export function TreeCanvas3D({ nodes: _n, edges: _e, roots = [], crossEdges = []
 
         <Stars radius={120} depth={60} count={7000} factor={4} fade speed={0.3} />
 
-        {roots.map((r, i) => (
-          <NebulaCloud key={r.id} position={new THREE.Vector3(i * TREE_X_GAP, -2, -2)} color={ROOT_THEME_COLORS[i % ROOT_THEME_COLORS.length]} />
-        ))}
-        {!roots.length && <NebulaCloud position={new THREE.Vector3(0, -2, -2)} color="#f59e0b" />}
 
-        <OrbitControls enableDamping dampingFactor={0.06} minDistance={1} maxDistance={120} enablePan panSpeed={0.7} rotateSpeed={0.45} zoomSpeed={0.9} />
-
-        {!allNodes.length && (
-          <Html center style={{ pointerEvents:'none' }}>
-            <span style={{ fontSize:13, color:'#282836', userSelect:'none' }}>输入概念，构建知识图谱</span>
-          </Html>
-        )}
+<OrbitControls enableDamping dampingFactor={0.06} minDistance={1} maxDistance={120} enablePan panSpeed={0.7} rotateSpeed={0.45} zoomSpeed={0.9} />
 
         {/* Tree edges */}
         {allEdges.map(([a, b], i) => {
